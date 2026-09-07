@@ -1,6 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { sendNotification, type NotifyEvent } from "@/lib/notifications.functions";
+import { toast } from "sonner";
 import {
   LayoutGrid,
   FileText,
@@ -9,7 +12,6 @@ import {
   Bell,
   Search,
   Plus,
-  ChevronDown,
   Smartphone,
   Monitor,
   MousePointerClick,
@@ -19,13 +21,22 @@ import {
   User,
   LogOut,
   Loader2,
+  Send,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +74,61 @@ const navItems = [
   { label: "Pengaturan", icon: Settings, active: false },
 ];
 
+const STATUSES = ["Draft", "Review", "Final"] as const;
+
+type ContentItem = {
+  id: string;
+  page: string;
+  subpage: string | null;
+  section: string;
+  konten_text: string | null;
+  media_url: string | null;
+  cta_text: string | null;
+  cta_link: string | null;
+  referensi: string | null;
+  screenshot_mobile: string | null;
+  screenshot_desktop: string | null;
+  status: string;
+  notes: string | null;
+};
+
+type Settings = {
+  email_enabled: boolean;
+  email_address: string;
+  wa_enabled: boolean;
+  wa_number: string;
+  wa_api_key: string;
+  notify_new: boolean;
+  notify_status: boolean;
+  notify_notes: boolean;
+};
+
+const emptySettings: Settings = {
+  email_enabled: false,
+  email_address: "",
+  wa_enabled: false,
+  wa_number: "",
+  wa_api_key: "",
+  notify_new: true,
+  notify_status: true,
+  notify_notes: true,
+};
+
+const emptyForm = {
+  page: "",
+  subpage: "",
+  section: "",
+  konten_text: "",
+  media_url: "",
+  cta_text: "",
+  cta_link: "",
+  referensi: "",
+  screenshot_mobile: "",
+  screenshot_desktop: "",
+  status: "Draft",
+  notes: "",
+};
+
 function SidebarNav({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -98,15 +164,6 @@ function SidebarNav({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function FilterSelect({ label }: { label: string }) {
-  return (
-    <button className="inline-flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary">
-      {label}
-      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-    </button>
-  );
-}
-
 const columns = [
   "Page & SubPage",
   "Section/Fitur",
@@ -122,11 +179,22 @@ const columns = [
 
 function Index() {
   const navigate = useNavigate();
+  const notify = useServerFn(sendNotification);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [open, setOpen] = useState(false);
-  const [emailOn, setEmailOn] = useState(true);
-  const [waOn, setWaOn] = useState(true);
-  const [checks, setChecks] = useState([true, true, true]);
+  const [settings, setSettings] = useState<Settings>(emptySettings);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [pageFilter, setPageFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ContentItem | null>(null);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [savingItem, setSavingItem] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -144,13 +212,222 @@ function Index() {
     };
   }, [navigate]);
 
+  const loadItems = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("content_items")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error && data) setItems(data as ContentItem[]);
+    setLoadingItems(false);
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    const { data } = await supabase.from("notification_settings").select("*").maybeSingle();
+    if (data) {
+      setSettings({
+        email_enabled: data.email_enabled,
+        email_address: data.email_address ?? "",
+        wa_enabled: data.wa_enabled,
+        wa_number: data.wa_number ?? "",
+        wa_api_key: data.wa_api_key ?? "",
+        notify_new: data.notify_new,
+        notify_status: data.notify_status,
+        notify_notes: data.notify_notes,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (checkingAuth) return;
+    void loadItems();
+    void loadSettings();
+  }, [checkingAuth, loadItems, loadSettings]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
 
-  const toggleCheck = (i: number) =>
-    setChecks((prev) => prev.map((c, idx) => (idx === i ? !c : c)));
+  const runNotify = async (event: NotifyEvent, title: string, body: string) => {
+    try {
+      const res = await notify({ data: { event, title, body } });
+      const wa = res.results.find((r) => r.channel === "whatsapp");
+      const mail = res.results.find((r) => r.channel === "email");
+      if (wa?.sent) toast.success("Notifikasi WhatsApp terkirim");
+      else if (wa) toast.error("WhatsApp gagal: " + (wa.reason ?? "tidak diketahui"));
+      if (mail && !mail.sent)
+        toast.message("Email belum aktif", {
+          description: "Domain pengirim email masih menunggu penyiapan.",
+        });
+      if (res.skipped === "no_settings")
+        toast.message("Simpan Pengaturan Notifikasi dulu agar pemberitahuan terkirim.");
+    } catch {
+      toast.error("Gagal mengirim notifikasi");
+    }
+  };
+
+  const saveSettings = async () => {
+    setSavingSettings(true);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return;
+    const { error } = await supabase.from("notification_settings").upsert({
+      user_id: auth.user.id,
+      email_enabled: settings.email_enabled,
+      email_address: settings.email_address || null,
+      wa_enabled: settings.wa_enabled,
+      wa_number: settings.wa_number || null,
+      wa_api_key: settings.wa_api_key || null,
+      notify_new: settings.notify_new,
+      notify_status: settings.notify_status,
+      notify_notes: settings.notify_notes,
+    });
+    setSavingSettings(false);
+    if (error) toast.error("Gagal menyimpan pengaturan");
+    else {
+      toast.success("Pengaturan notifikasi tersimpan");
+      setOpen(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    await saveSettingsSilently();
+    await runNotify(
+      "test",
+      "Uji Notifikasi Content Matrix CMS",
+      "Ini pesan uji coba. Jika Anda menerima ini, notifikasi sudah aktif.",
+    );
+    setTesting(false);
+  };
+
+  const saveSettingsSilently = async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return;
+    await supabase.from("notification_settings").upsert({
+      user_id: auth.user.id,
+      email_enabled: settings.email_enabled,
+      email_address: settings.email_address || null,
+      wa_enabled: settings.wa_enabled,
+      wa_number: settings.wa_number || null,
+      wa_api_key: settings.wa_api_key || null,
+      notify_new: settings.notify_new,
+      notify_status: settings.notify_status,
+      notify_notes: settings.notify_notes,
+    });
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ ...emptyForm });
+    setFormOpen(true);
+  };
+
+  const openEdit = (item: ContentItem) => {
+    setEditing(item);
+    setForm({
+      page: item.page,
+      subpage: item.subpage ?? "",
+      section: item.section,
+      konten_text: item.konten_text ?? "",
+      media_url: item.media_url ?? "",
+      cta_text: item.cta_text ?? "",
+      cta_link: item.cta_link ?? "",
+      referensi: item.referensi ?? "",
+      screenshot_mobile: item.screenshot_mobile ?? "",
+      screenshot_desktop: item.screenshot_desktop ?? "",
+      status: item.status,
+      notes: item.notes ?? "",
+    });
+    setFormOpen(true);
+  };
+
+  const saveItem = async () => {
+    if (!form.page.trim() || !form.section.trim()) {
+      toast.error("Halaman dan Section wajib diisi");
+      return;
+    }
+    setSavingItem(true);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return;
+
+    const payload = {
+      page: form.page.trim(),
+      subpage: form.subpage || null,
+      section: form.section.trim(),
+      konten_text: form.konten_text || null,
+      media_url: form.media_url || null,
+      cta_text: form.cta_text || null,
+      cta_link: form.cta_link || null,
+      referensi: form.referensi || null,
+      screenshot_mobile: form.screenshot_mobile || null,
+      screenshot_desktop: form.screenshot_desktop || null,
+      status: form.status,
+      notes: form.notes || null,
+    };
+
+    if (editing) {
+      const { error } = await supabase
+        .from("content_items")
+        .update(payload)
+        .eq("id", editing.id);
+      setSavingItem(false);
+      if (error) {
+        toast.error("Gagal menyimpan konten");
+        return;
+      }
+      toast.success("Konten diperbarui");
+      setFormOpen(false);
+      await loadItems();
+      if (editing.status !== form.status) {
+        await runNotify(
+          "status",
+          "Status konten diubah",
+          `${payload.page} — ${payload.section}: ${editing.status} → ${form.status}`,
+        );
+      }
+      if ((editing.notes ?? "") !== (payload.notes ?? "") && payload.notes) {
+        await runNotify(
+          "notes",
+          "Catatan baru pada konten",
+          `${payload.page} — ${payload.section}: ${payload.notes}`,
+        );
+      }
+    } else {
+      const { error } = await supabase
+        .from("content_items")
+        .insert({ ...payload, user_id: auth.user.id });
+      setSavingItem(false);
+      if (error) {
+        toast.error("Gagal menambahkan konten");
+        return;
+      }
+      toast.success("Konten ditambahkan");
+      setFormOpen(false);
+      await loadItems();
+      await runNotify(
+        "new",
+        "Konten baru ditambahkan",
+        `${payload.page} — ${payload.section} (status: ${payload.status})`,
+      );
+    }
+  };
+
+  const deleteItem = async (item: ContentItem) => {
+    const { error } = await supabase.from("content_items").delete().eq("id", item.id);
+    if (error) {
+      toast.error("Gagal menghapus konten");
+      return;
+    }
+    toast.success("Konten dihapus");
+    await loadItems();
+  };
+
+  const pages = Array.from(new Set(items.map((i) => i.page)));
+  const visible = items.filter(
+    (i) =>
+      (pageFilter === "all" || i.page === pageFilter) &&
+      (statusFilter === "all" || i.status === statusFilter),
+  );
 
   if (checkingAuth) {
     return (
@@ -215,7 +492,7 @@ function Index() {
                 <Settings className="h-4 w-4" />
                 Pengaturan Notifikasi
               </Button>
-              <Button className="font-semibold shadow-sm">
+              <Button onClick={openCreate} className="font-semibold shadow-sm">
                 <Plus className="h-4 w-4" />
                 Tambah Konten
               </Button>
@@ -224,8 +501,32 @@ function Index() {
 
           <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap gap-3">
-              <FilterSelect label="Pilih Halaman" />
-              <FilterSelect label="Status" />
+              <Select value={pageFilter} onValueChange={setPageFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Pilih Halaman" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Halaman</SelectItem>
+                  {pages.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="mt-4 overflow-x-auto">
@@ -243,45 +544,106 @@ function Index() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-border/70 transition-colors hover:bg-secondary/60">
-                    <td className="px-4 py-4 font-medium text-foreground">Beranda</td>
-                    <td className="whitespace-nowrap px-4 py-4 text-foreground">1. Hero Banner</td>
-                    <td className="max-w-[220px] px-4 py-4 text-muted-foreground">
-                      SENTRA LAYANAN...
-                    </td>
-                    <td className="px-4 py-4 text-muted-foreground">
-                      <ImageIcon className="h-5 w-5" />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4">
-                      <span className="inline-flex items-center gap-2 text-foreground">
-                        <MousePointerClick className="h-4 w-4 text-muted-foreground" />
-                        Daftar
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-muted-foreground">—</td>
-                    <td className="px-4 py-4">
-                      <span className="flex items-center gap-3 text-muted-foreground">
-                        <Smartphone className="h-5 w-5" />
-                        <Monitor className="h-5 w-5" />
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex rounded-full bg-success px-3 py-1 text-xs font-semibold text-success-foreground">
-                        Final
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-muted-foreground"></td>
-                    <td className="px-4 py-4">
-                      <span className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" aria-label="Edit konten">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" aria-label="Hapus konten">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </span>
-                    </td>
-                  </tr>
+                  {loadingItems && (
+                    <tr>
+                      <td colSpan={columns.length} className="px-4 py-10 text-center">
+                        <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                      </td>
+                    </tr>
+                  )}
+                  {!loadingItems && visible.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={columns.length}
+                        className="px-4 py-10 text-center text-muted-foreground"
+                      >
+                        Belum ada konten. Klik "Tambah Konten" untuk memulai.
+                      </td>
+                    </tr>
+                  )}
+                  {visible.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b border-border/70 transition-colors hover:bg-secondary/60"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4 font-medium text-foreground">
+                        {item.page}
+                        {item.subpage ? (
+                          <span className="text-muted-foreground"> / {item.subpage}</span>
+                        ) : null}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-foreground">
+                        {item.section}
+                      </td>
+                      <td className="max-w-[220px] truncate px-4 py-4 text-muted-foreground">
+                        {item.konten_text ?? "—"}
+                      </td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        {item.media_url ? <ImageIcon className="h-5 w-5" /> : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4">
+                        {item.cta_text ? (
+                          <span className="inline-flex items-center gap-2 text-foreground">
+                            <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+                            {item.cta_text}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
+                        {item.referensi ?? "—"}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="flex items-center gap-3 text-muted-foreground">
+                          <Smartphone
+                            className={
+                              item.screenshot_mobile ? "h-5 w-5 text-foreground" : "h-5 w-5"
+                            }
+                          />
+                          <Monitor
+                            className={
+                              item.screenshot_desktop ? "h-5 w-5 text-foreground" : "h-5 w-5"
+                            }
+                          />
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={
+                            item.status === "Final"
+                              ? "inline-flex rounded-full bg-success px-3 py-1 text-xs font-semibold text-success-foreground"
+                              : "inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground"
+                          }
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
+                        {item.notes ?? ""}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Edit konten"
+                            onClick={() => openEdit(item)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Hapus konten"
+                            onClick={() => deleteItem(item)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -289,8 +651,134 @@ function Index() {
         </main>
       </div>
 
+      {/* Form konten */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              {editing ? "Edit Konten" : "Tambah Konten"}
+            </DialogTitle>
+            <DialogDescription>
+              Lengkapi kebutuhan konten untuk satu section halaman.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Halaman *</label>
+              <Input
+                value={form.page}
+                onChange={(e) => setForm({ ...form, page: e.target.value })}
+                placeholder="Beranda"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Sub Halaman</label>
+              <Input
+                value={form.subpage}
+                onChange={(e) => setForm({ ...form, subpage: e.target.value })}
+                placeholder="—"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium">Section / Fitur *</label>
+              <Input
+                value={form.section}
+                onChange={(e) => setForm({ ...form, section: e.target.value })}
+                placeholder="1. Hero Banner"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium">Konten Text</label>
+              <Textarea
+                value={form.konten_text}
+                onChange={(e) => setForm({ ...form, konten_text: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Media (URL)</label>
+              <Input
+                value={form.media_url}
+                onChange={(e) => setForm({ ...form, media_url: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Referensi Web</label>
+              <Input
+                value={form.referensi}
+                onChange={(e) => setForm({ ...form, referensi: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Teks Tombol CTA</label>
+              <Input
+                value={form.cta_text}
+                onChange={(e) => setForm({ ...form, cta_text: e.target.value })}
+                placeholder="Daftar"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Link CTA</label>
+              <Input
+                value={form.cta_link}
+                onChange={(e) => setForm({ ...form, cta_link: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Screenshot Mobile (URL)</label>
+              <Input
+                value={form.screenshot_mobile}
+                onChange={(e) => setForm({ ...form, screenshot_mobile: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Screenshot Desktop (URL)</label>
+              <Input
+                value={form.screenshot_desktop}
+                onChange={(e) => setForm({ ...form, screenshot_desktop: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>
+              Batal
+            </Button>
+            <Button className="font-semibold" onClick={saveItem} disabled={savingItem}>
+              {savingItem && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Konten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pengaturan notifikasi */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">
               Pengaturan Notifikasi Real-time
@@ -303,38 +791,71 @@ function Index() {
           <div className="space-y-5 py-2">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <Switch checked={emailOn} onCheckedChange={setEmailOn} id="notif-email" />
+                <Switch
+                  checked={settings.email_enabled}
+                  onCheckedChange={(v) => setSettings({ ...settings, email_enabled: v })}
+                  id="notif-email"
+                />
                 <label htmlFor="notif-email" className="text-sm font-semibold text-foreground">
                   Notifikasi Email
                 </label>
               </div>
-              <Input placeholder="Masukkan Alamat Email" type="email" disabled={!emailOn} />
+              <Input
+                placeholder="Masukkan Alamat Email"
+                type="email"
+                value={settings.email_address}
+                onChange={(e) => setSettings({ ...settings, email_address: e.target.value })}
+                disabled={!settings.email_enabled}
+              />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <Switch checked={waOn} onCheckedChange={setWaOn} id="notif-wa" />
+                <Switch
+                  checked={settings.wa_enabled}
+                  onCheckedChange={(v) => setSettings({ ...settings, wa_enabled: v })}
+                  id="notif-wa"
+                />
                 <label htmlFor="notif-wa" className="text-sm font-semibold text-foreground">
                   Notifikasi WhatsApp
                 </label>
               </div>
-              <Input placeholder="Masukkan Nomor WhatsApp" type="tel" disabled={!waOn} />
+              <Input
+                placeholder="Masukkan Nomor WhatsApp (08xx / 62xx)"
+                type="tel"
+                value={settings.wa_number}
+                onChange={(e) => setSettings({ ...settings, wa_number: e.target.value })}
+                disabled={!settings.wa_enabled}
+              />
+              <Input
+                placeholder="Kode API WhatsApp (gratis dari CallMeBot)"
+                value={settings.wa_api_key}
+                onChange={(e) => setSettings({ ...settings, wa_api_key: e.target.value })}
+                disabled={!settings.wa_enabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                Cara dapat kode gratis: kirim pesan WhatsApp{" "}
+                <span className="font-semibold">"I allow callmebot to send me messages"</span> ke
+                nomor +34 644 51 95 23, lalu salin kode API yang dibalas ke kolom di atas.
+              </p>
             </div>
 
             <div className="space-y-3">
               <p className="text-sm font-semibold text-foreground">Kirim notifikasi saat:</p>
-              {[
-                "Konten baru ditambahkan",
-                "Status konten diubah (Draft ke Final)",
-                "Ada catatan/notes baru",
-              ].map((label, i) => (
-                <div key={label} className="flex items-center gap-3">
+              {(
+                [
+                  ["notify_new", "Konten baru ditambahkan"],
+                  ["notify_status", "Status konten diubah (Draft ke Final)"],
+                  ["notify_notes", "Ada catatan/notes baru"],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-3">
                   <Checkbox
-                    id={`check-${i}`}
-                    checked={checks[i] ?? false}
-                    onCheckedChange={() => toggleCheck(i)}
+                    id={key}
+                    checked={settings[key]}
+                    onCheckedChange={(v) => setSettings({ ...settings, [key]: v === true })}
                   />
-                  <label htmlFor={`check-${i}`} className="text-sm text-foreground">
+                  <label htmlFor={key} className="text-sm text-foreground">
                     {label}
                   </label>
                 </div>
@@ -342,13 +863,24 @@ function Index() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Batal
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={sendTest} disabled={testing}>
+              {testing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              Kirim Uji Coba
             </Button>
-            <Button className="font-semibold" onClick={() => setOpen(false)}>
-              Simpan Pengaturan
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Batal
+              </Button>
+              <Button className="font-semibold" onClick={saveSettings} disabled={savingSettings}>
+                {savingSettings && <Loader2 className="h-4 w-4 animate-spin" />}
+                Simpan Pengaturan
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
