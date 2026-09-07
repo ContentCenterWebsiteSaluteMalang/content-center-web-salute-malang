@@ -112,7 +112,7 @@ function FormComponent() {
         .upload(`${Date.now()}_${file.name}`, file);
 
       if (error) {
-        toast.error(`Gagal upload screenshot ${type}`);
+        toast.error(`Gagal upload screenshot ${type}: ${error.message}`);
         return;
       }
 
@@ -126,8 +126,8 @@ function FormComponent() {
         setForm({ ...form, screenshot_desktop: publicUrlData.publicUrl });
       }
       toast.success(`Screenshot ${type} berhasil diupload`);
-    } catch (e) {
-      toast.error(`Terjadi kesalahan saat upload`);
+    } catch (e: any) {
+      toast.error(`Terjadi kesalahan saat upload: ${e.message || String(e)}`);
     } finally {
       if (type === "mobile") setUploadingMobile(false);
       else setUploadingDesktop(false);
