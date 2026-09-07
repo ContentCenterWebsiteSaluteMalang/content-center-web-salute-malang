@@ -16,6 +16,7 @@ import {
   Trash2,
   Menu,
   User,
+  LogIn,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
