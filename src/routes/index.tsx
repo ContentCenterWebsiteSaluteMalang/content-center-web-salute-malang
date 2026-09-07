@@ -44,6 +44,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { AdminAccessView } from "@/components/AdminAccessView";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -67,10 +68,11 @@ export const Route = createFileRoute("/")({
 });
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutGrid, active: false },
-  { label: "Halaman Web", icon: FileText, active: true },
-  { label: "Media Library", icon: ImageIcon, active: false },
-  { label: "Pengaturan", icon: Settings, active: false },
+  { label: "Dashboard", icon: LayoutGrid },
+  { label: "Halaman Web", icon: FileText },
+  { label: "Media Library", icon: ImageIcon },
+  { label: "Akses Admin", icon: User },
+  { label: "Pengaturan", icon: Settings },
 ];
 
 const STATUSES = ["Draft", "Review", "Final"] as const;
@@ -128,26 +130,38 @@ const emptyForm = {
   notes: "",
 };
 
-function SidebarNav({ onLogout }: { onLogout: () => void }) {
+function SidebarNav({
+  activeTab,
+  onTabChange,
+  onLogout,
+}: {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  onLogout: () => void;
+}) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-6">
         <span className="text-lg font-bold tracking-tight">Content Matrix CMS</span>
       </div>
       <nav className="flex flex-col gap-1 px-3">
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            className={
-              item.active
-                ? "flex items-center gap-3 rounded-lg bg-sidebar-primary px-3 py-2.5 text-sm font-semibold text-sidebar-primary-foreground"
-                : "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-            }
-          >
-            <item.icon className="h-4.5 w-4.5" />
-            {item.label}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const isActive = item.label === activeTab;
+          return (
+            <button
+              key={item.label}
+              onClick={() => onTabChange(item.label)}
+              className={
+                isActive
+                  ? "flex items-center gap-3 rounded-lg bg-sidebar-primary px-3 py-2.5 text-sm font-semibold text-sidebar-primary-foreground"
+                  : "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+              }
+            >
+              <item.icon className="h-4.5 w-4.5" />
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="mt-auto px-3 pb-6 pt-4">
@@ -180,6 +194,7 @@ function Index() {
   const navigate = useNavigate();
   const notify = sendNotification;
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [activeTab, setActiveTab] = useState("Halaman Web");
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(emptySettings);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -194,6 +209,42 @@ function Index() {
   const [editing, setEditing] = useState<ContentItem | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [savingItem, setSavingItem] = useState(false);
+  const [uploadingMobile, setUploadingMobile] = useState(false);
+  const [uploadingDesktop, setUploadingDesktop] = useState(false);
+
+  const handleUploadImage = async (file: File, type: "mobile" | "desktop") => {
+    if (!file) return;
+
+    if (type === "mobile") setUploadingMobile(true);
+    else setUploadingDesktop(true);
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("content_images")
+        .upload(`${Date.now()}_${file.name}`, file);
+
+      if (error) {
+        toast.error(`Gagal upload screenshot ${type}`);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("content_images")
+        .getPublicUrl(data.path);
+
+      if (type === "mobile") {
+        setForm({ ...form, screenshot_mobile: publicUrlData.publicUrl });
+      } else {
+        setForm({ ...form, screenshot_desktop: publicUrlData.publicUrl });
+      }
+      toast.success(`Screenshot ${type} berhasil diupload`);
+    } catch (e) {
+      toast.error(`Terjadi kesalahan saat upload`);
+    } finally {
+      if (type === "mobile") setUploadingMobile(false);
+      else setUploadingDesktop(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -436,7 +487,7 @@ function Index() {
   return (
     <div className="flex min-h-screen w-full bg-background">
       <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
-        <SidebarNav onLogout={handleLogout} />
+        <SidebarNav activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -449,13 +500,17 @@ function Index() {
             </SheetTrigger>
             <SheetContent side="left" className="w-64 border-none bg-sidebar p-0">
               <SheetTitle className="sr-only">Navigasi</SheetTitle>
-              <SidebarNav onLogout={handleLogout} />
+              <SidebarNav
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onLogout={handleLogout}
+              />
             </SheetContent>
           </Sheet>
 
           <nav className="truncate text-sm text-muted-foreground">
             Dashboard <span className="px-1">/</span>
-            <span className="font-semibold text-foreground">Halaman Web</span>
+            <span className="font-semibold text-foreground">{activeTab}</span>
           </nav>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -474,176 +529,191 @@ function Index() {
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                Guideline Konten Website
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Kelola kebutuhan konten antara Developer dan Client
+          {activeTab === "Halaman Web" ? (
+            <>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                    Guideline Konten Website
+                  </h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Kelola kebutuhan konten antara Developer dan Client
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={() => setOpen(true)} className="font-semibold shadow-sm">
+                    <Settings className="h-4 w-4" />
+                    Pengaturan Notifikasi
+                  </Button>
+                  <Button onClick={openCreate} className="font-semibold shadow-sm">
+                    <Plus className="h-4 w-4" />
+                    Tambah Konten
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+                <div className="flex flex-wrap gap-3">
+                  <Select value={pageFilter} onValueChange={setPageFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Pilih Halaman" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Halaman</SelectItem>
+                      {pages.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Status</SelectItem>
+                      {STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[1100px] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {columns.map((col) => (
+                          <th
+                            key={col}
+                            className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingItems && (
+                        <tr>
+                          <td colSpan={columns.length} className="px-4 py-10 text-center">
+                            <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                          </td>
+                        </tr>
+                      )}
+                      {!loadingItems && visible.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={columns.length}
+                            className="px-4 py-10 text-center text-muted-foreground"
+                          >
+                            Belum ada konten. Klik "Tambah Konten" untuk memulai.
+                          </td>
+                        </tr>
+                      )}
+                      {visible.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="border-b border-border/70 transition-colors hover:bg-secondary/60"
+                        >
+                          <td className="whitespace-nowrap px-4 py-4 font-medium text-foreground">
+                            {item.page}
+                            {item.subpage ? (
+                              <span className="text-muted-foreground"> / {item.subpage}</span>
+                            ) : null}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-4 text-foreground">
+                            {item.section}
+                          </td>
+                          <td className="max-w-[220px] truncate px-4 py-4 text-muted-foreground">
+                            {item.konten_text ?? "—"}
+                          </td>
+                          <td className="px-4 py-4 text-muted-foreground">
+                            {item.media_url ? <ImageIcon className="h-5 w-5" /> : "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-4">
+                            {item.cta_text ? (
+                              <span className="inline-flex items-center gap-2 text-foreground">
+                                <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+                                {item.cta_text}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
+                            {item.referensi ?? "—"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="flex items-center gap-3 text-muted-foreground">
+                              <Smartphone
+                                className={
+                                  item.screenshot_mobile ? "h-5 w-5 text-foreground" : "h-5 w-5"
+                                }
+                              />
+                              <Monitor
+                                className={
+                                  item.screenshot_desktop ? "h-5 w-5 text-foreground" : "h-5 w-5"
+                                }
+                              />
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span
+                              className={
+                                item.status === "Final"
+                                  ? "inline-flex rounded-full bg-success px-3 py-1 text-xs font-semibold text-success-foreground"
+                                  : "inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground"
+                              }
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
+                            {item.notes ?? ""}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Edit konten"
+                                onClick={() => openEdit(item)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Hapus konten"
+                                onClick={() => deleteItem(item)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : activeTab === "Akses Admin" ? (
+            <AdminAccessView />
+          ) : (
+            <div className="flex h-[60vh] flex-col items-center justify-center text-center">
+              <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                {activeTab}
+              </h2>
+              <p className="mt-2 max-w-[500px] text-sm text-muted-foreground">
+                Fitur {activeTab} sedang dalam pengembangan.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setOpen(true)} className="font-semibold shadow-sm">
-                <Settings className="h-4 w-4" />
-                Pengaturan Notifikasi
-              </Button>
-              <Button onClick={openCreate} className="font-semibold shadow-sm">
-                <Plus className="h-4 w-4" />
-                Tambah Konten
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-            <div className="flex flex-wrap gap-3">
-              <Select value={pageFilter} onValueChange={setPageFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Pilih Halaman" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Halaman</SelectItem>
-                  {pages.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1100px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    {columns.map((col) => (
-                      <th
-                        key={col}
-                        className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadingItems && (
-                    <tr>
-                      <td colSpan={columns.length} className="px-4 py-10 text-center">
-                        <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-                      </td>
-                    </tr>
-                  )}
-                  {!loadingItems && visible.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={columns.length}
-                        className="px-4 py-10 text-center text-muted-foreground"
-                      >
-                        Belum ada konten. Klik "Tambah Konten" untuk memulai.
-                      </td>
-                    </tr>
-                  )}
-                  {visible.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b border-border/70 transition-colors hover:bg-secondary/60"
-                    >
-                      <td className="whitespace-nowrap px-4 py-4 font-medium text-foreground">
-                        {item.page}
-                        {item.subpage ? (
-                          <span className="text-muted-foreground"> / {item.subpage}</span>
-                        ) : null}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-foreground">
-                        {item.section}
-                      </td>
-                      <td className="max-w-[220px] truncate px-4 py-4 text-muted-foreground">
-                        {item.konten_text ?? "—"}
-                      </td>
-                      <td className="px-4 py-4 text-muted-foreground">
-                        {item.media_url ? <ImageIcon className="h-5 w-5" /> : "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4">
-                        {item.cta_text ? (
-                          <span className="inline-flex items-center gap-2 text-foreground">
-                            <MousePointerClick className="h-4 w-4 text-muted-foreground" />
-                            {item.cta_text}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
-                        {item.referensi ?? "—"}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="flex items-center gap-3 text-muted-foreground">
-                          <Smartphone
-                            className={
-                              item.screenshot_mobile ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                            }
-                          />
-                          <Monitor
-                            className={
-                              item.screenshot_desktop ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                            }
-                          />
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={
-                            item.status === "Final"
-                              ? "inline-flex rounded-full bg-success px-3 py-1 text-xs font-semibold text-success-foreground"
-                              : "inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground"
-                          }
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
-                        {item.notes ?? ""}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Edit konten"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Hapus konten"
-                            onClick={() => deleteItem(item)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          )}
         </main>
       </div>
 
@@ -723,17 +793,65 @@ function Index() {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Screenshot Mobile (URL)</label>
-              <Input
-                value={form.screenshot_mobile}
-                onChange={(e) => setForm({ ...form, screenshot_mobile: e.target.value })}
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.screenshot_mobile}
+                  onChange={(e) => setForm({ ...form, screenshot_mobile: e.target.value })}
+                  placeholder="Atau pilih file..."
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadImage(e.target.files[0], "mobile");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingMobile}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingMobile}>
+                    {uploadingMobile ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Screenshot Desktop (URL)</label>
-              <Input
-                value={form.screenshot_desktop}
-                onChange={(e) => setForm({ ...form, screenshot_desktop: e.target.value })}
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.screenshot_desktop}
+                  onChange={(e) => setForm({ ...form, screenshot_desktop: e.target.value })}
+                  placeholder="Atau pilih file..."
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadImage(e.target.files[0], "desktop");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingDesktop}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingDesktop}>
+                    {uploadingDesktop ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Status</label>

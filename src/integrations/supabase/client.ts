@@ -332,9 +332,105 @@ function createMockSupabaseClient(): ReturnType<typeof createClient<Database>> {
         };
       }
 
+      if (table === "profiles") {
+        const STORAGE_KEY_PROFILES = "content_matrix_profiles_v1";
+        const defaultProfiles = [
+          {
+            id: "demo-admin-id",
+            display_name: "Admin Salute Malang",
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ];
+
+        return {
+          select(_cols?: string) {
+            return {
+              order(field: string, opts?: { ascending?: boolean }) {
+                return {
+                  then(
+                    onfulfilled?: (value: {
+                      data: Record<string, unknown>[];
+                      error: null;
+                    }) => unknown,
+                  ) {
+                    const list = getStored<Record<string, unknown>[]>(
+                      STORAGE_KEY_PROFILES,
+                      defaultProfiles,
+                    );
+                    return Promise.resolve({ data: list, error: null }).then(onfulfilled);
+                  },
+                };
+              },
+              then(
+                onfulfilled?: (value: { data: Record<string, unknown>[]; error: null }) => unknown,
+              ) {
+                const list = getStored<Record<string, unknown>[]>(
+                  STORAGE_KEY_PROFILES,
+                  defaultProfiles,
+                );
+                return Promise.resolve({ data: list, error: null }).then(onfulfilled);
+              },
+            };
+          },
+          async insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
+            const list = getStored<Record<string, unknown>[]>(
+              STORAGE_KEY_PROFILES,
+              defaultProfiles,
+            );
+            const items = Array.isArray(payload) ? payload : [payload];
+            const created = items.map((item) => ({
+              id: item.id || `profile-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              ...item,
+            }));
+            const updatedList = [...list, ...created];
+            setStored(STORAGE_KEY_PROFILES, updatedList);
+            return { data: created, error: null };
+          },
+          delete() {
+            return {
+              eq(field: string, val: unknown) {
+                const list = getStored<Record<string, unknown>[]>(
+                  STORAGE_KEY_PROFILES,
+                  defaultProfiles,
+                );
+                const updatedList = list.filter((item) => item[field] !== val);
+                setStored(STORAGE_KEY_PROFILES, updatedList);
+                return Promise.resolve({ data: null, error: null });
+              },
+            };
+          },
+        };
+      }
+
       return {
         select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
       };
+    },
+    storage: {
+      from: (bucket: string) => ({
+        upload: async (path: string, file: File) => {
+          // Mock upload by creating a local object URL (in real app, we'd upload to supabase storage)
+          const url = URL.createObjectURL(file);
+          // Return the object URL as the path so getPublicUrl can identify and return it
+          return { data: { path: url }, error: null };
+        },
+        getPublicUrl: (path: string) => {
+          // Since we use object URLs in the mock, we need a way to pass the file around.
+          // For a simple mock, we'll just assume the path is an object URL if it starts with blob:
+          // or we just return a fake unsplash placeholder for demo purposes.
+          if (path.startsWith("blob:")) {
+            return { data: { publicUrl: path } };
+          }
+          // fallback placeholder
+          return {
+            data: { publicUrl: `https://images.unsplash.com/photo-1460925895917-afdab827c52f` },
+          };
+        },
+      }),
     },
   };
 
