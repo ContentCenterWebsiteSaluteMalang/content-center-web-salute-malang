@@ -52,11 +52,21 @@ export const sendNotification = createServerFn({ method: "POST" })
           encodeURIComponent(settings.wa_api_key);
         const res = await fetch(url);
         const text = await res.text();
+        const lower = text.toLowerCase();
+        const invalidKey = lower.includes("apikey") && lower.includes("invalid");
+        const notRegistered = lower.includes("not registered") || lower.includes("not allowed");
+        const ok = res.ok && !invalidKey && !notRegistered;
+        const reason = invalidKey
+          ? "Kode API salah. Minta kode baru lewat WhatsApp lalu salin ulang."
+          : notRegistered
+            ? "Nomor belum terdaftar di CallMeBot. Kirim pesan permintaan kode dari nomor yang sama."
+            : text.replace(/<[^>]*>/g, " ").trim().slice(0, 200);
         results.push({
           channel: "whatsapp",
-          sent: res.ok,
-          ...(res.ok ? {} : { reason: text.slice(0, 200) }),
+          sent: ok,
+          ...(ok ? {} : { reason }),
         });
+
       } catch (err) {
         results.push({ channel: "whatsapp", sent: false, reason: String(err).slice(0, 200) });
       }

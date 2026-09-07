@@ -833,11 +833,72 @@ function Index() {
                 onChange={(e) => setSettings({ ...settings, wa_api_key: e.target.value })}
                 disabled={!settings.wa_enabled}
               />
-              <p className="text-xs text-muted-foreground">
-                Cara dapat kode gratis: kirim pesan WhatsApp{" "}
-                <span className="font-semibold">"I allow callmebot to send me messages"</span> ke
-                nomor +34 644 51 95 23, lalu salin kode API yang dibalas ke kolom di atas.
-              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!settings.wa_enabled}
+                  onClick={() =>
+                    window.open(
+                      "https://wa.me/34644519523?text=" +
+                        encodeURIComponent("I allow callmebot to send me messages"),
+                      "_blank",
+                      "noopener",
+                    )
+                  }
+                >
+                  1. Minta kode lewat WhatsApp
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!settings.wa_enabled}
+                  onClick={() =>
+                    window.open(
+                      "https://wa.me/34621331709?text=" +
+                        encodeURIComponent("I allow callmebot to send me messages"),
+                      "_blank",
+                      "noopener",
+                    )
+                  }
+                >
+                  Nomor cadangan
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!settings.wa_enabled}
+                  onClick={() => setSettings({ ...settings, wa_number: "", wa_api_key: "" })}
+                >
+                  Kosongkan nomor & kode
+                </Button>
+              </div>
+              <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-semibold text-foreground">Cara isi ulang (gratis):</p>
+                <ol className="list-decimal space-y-1 pl-4">
+                  <li>
+                    Tekan tombol di atas — WhatsApp terbuka dengan pesan siap kirim ke +34 644 51 95
+                    23. Kirim pesannya persis apa adanya, tanpa diubah.
+                  </li>
+                  <li>
+                    Balasan berisi kode bisa datang sampai ±2 menit. Kalau lewat 5 menit belum
+                    dibalas, coba tombol <span className="font-semibold">Nomor cadangan</span> (+34
+                    621 33 17 09).
+                  </li>
+                  <li>
+                    Salin kode dari balasan (hanya angkanya) ke kolom kode di atas, isi nomor
+                    WhatsApp Anda, lalu tekan <span className="font-semibold">Kirim Uji Coba</span>.
+                  </li>
+                </ol>
+                <p className="mt-2">
+                  Catatan: nomor WhatsApp yang Anda isi harus sama persis dengan nomor yang dipakai
+                  mengirim pesan permintaan kode.
+                </p>
+              </div>
+
             </div>
 
             <div className="space-y-3">
