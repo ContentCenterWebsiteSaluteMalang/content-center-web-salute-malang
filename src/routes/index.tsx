@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid,
   FileText,
@@ -16,7 +17,8 @@ import {
   Trash2,
   Menu,
   User,
-  LogIn,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,7 +63,7 @@ const navItems = [
   { label: "Pengaturan", icon: Settings, active: false },
 ];
 
-function SidebarNav() {
+function SidebarNav({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-6">
@@ -84,13 +86,13 @@ function SidebarNav() {
       </nav>
 
       <div className="mt-auto px-3 pb-6 pt-4">
-        <Link
-          to="/auth"
-          className="flex items-center gap-3 rounded-lg border border-sidebar-border px-3 py-2.5 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+        <button
+          onClick={onLogout}
+          className="flex w-full items-center gap-3 rounded-lg border border-sidebar-border px-3 py-2.5 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
         >
-          <LogIn className="h-4.5 w-4.5" />
-          Login Admin
-        </Link>
+          <LogOut className="h-4.5 w-4.5" />
+          Logout
+        </button>
       </div>
     </div>
   );
@@ -119,18 +121,49 @@ const columns = [
 ];
 
 function Index() {
+  const navigate = useNavigate();
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [open, setOpen] = useState(false);
   const [emailOn, setEmailOn] = useState(true);
   const [waOn, setWaOn] = useState(true);
   const [checks, setChecks] = useState([true, true, true]);
 
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      if (!data.session) navigate({ to: "/auth", replace: true });
+      else setCheckingAuth(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) navigate({ to: "/auth", replace: true });
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  };
+
   const toggleCheck = (i: number) =>
     setChecks((prev) => prev.map((c, idx) => (idx === i ? !c : c)));
+
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full bg-background">
       <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
-        <SidebarNav />
+        <SidebarNav onLogout={handleLogout} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -143,7 +176,7 @@ function Index() {
             </SheetTrigger>
             <SheetContent side="left" className="w-64 border-none bg-sidebar p-0">
               <SheetTitle className="sr-only">Navigasi</SheetTitle>
-              <SidebarNav />
+              <SidebarNav onLogout={handleLogout} />
             </SheetContent>
           </Sheet>
 
