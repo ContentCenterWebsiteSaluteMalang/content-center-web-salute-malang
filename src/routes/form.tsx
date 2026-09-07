@@ -27,7 +27,7 @@ export const Route = createFileRoute("/form")({
   component: FormComponent,
   validateSearch: (search: Record<string, unknown>): { id?: string } => {
     return {
-      id: search.id as string | undefined,
+      id: typeof search.id === "string" ? search.id : undefined,
     };
   },
 });
@@ -49,6 +49,10 @@ const emptyForm = {
   notes: "",
 };
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function FormComponent() {
   const { id } = Route.useSearch();
   const navigate = useNavigate();
@@ -67,37 +71,61 @@ function FormComponent() {
   }, [navigate]);
 
   useEffect(() => {
-    if (id) {
-      setLoading(true);
-      supabase
-        .from("content_items")
-        .select("*")
-        .eq("id", id)
-        .single()
-        .then(({ data, error }) => {
-          setLoading(false);
-          if (error || !data) {
-            toast.error("Gagal memuat konten");
-            navigate({ to: "/" });
-          } else {
-            setEditing(data);
-            setForm({
-              page: data.page,
-              subpage: data.subpage || "",
-              section: data.section,
-              konten_text: data.konten_text || "",
-              media_url: data.media_url || "",
-              cta_text: data.cta_text || "",
-              cta_link: data.cta_link || "",
-              referensi: data.referensi || "",
-              screenshot_mobile: data.screenshot_mobile || "",
-              screenshot_desktop: data.screenshot_desktop || "",
-              status: data.status,
-              notes: data.notes || "",
-            });
-          }
-        });
+    if (!id) {
+      setEditing(null);
+      setForm({ ...emptyForm });
+      return;
     }
+
+    // Old/mock URLs such as /form?id=item-1 should open a fresh form
+    // instead of causing a database lookup/error page.
+    if (!isUuid(id)) {
+      toast.info("ID konten lama tidak valid. Form baru dibuka.");
+      setEditing(null);
+      setForm({ ...emptyForm });
+      navigate({ to: "/form", replace: true });
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    supabase
+      .from("content_items")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setLoading(false);
+
+        if (error || !data) {
+          toast.error("Konten tidak ditemukan. Form baru dibuka.");
+          setEditing(null);
+          setForm({ ...emptyForm });
+          navigate({ to: "/form", replace: true });
+          return;
+        }
+
+        setEditing(data);
+        setForm({
+          page: data.page,
+          subpage: data.subpage || "",
+          section: data.section,
+          konten_text: data.konten_text || "",
+          media_url: data.media_url || "",
+          cta_text: data.cta_text || "",
+          cta_link: data.cta_link || "",
+          referensi: data.referensi || "",
+          screenshot_mobile: data.screenshot_mobile || "",
+          screenshot_desktop: data.screenshot_desktop || "",
+          status: data.status,
+          notes: data.notes || "",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, navigate]);
 
   const handleUploadImage = async (file: File, type: "mobile" | "desktop") => {
@@ -141,7 +169,11 @@ function FormComponent() {
     }
     setSavingItem(true);
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
+    if (!auth.user) {
+      setSavingItem(false);
+      toast.error("Sesi login tidak ditemukan");
+      return;
+    }
 
     const payload = {
       page: form.page.trim(),
