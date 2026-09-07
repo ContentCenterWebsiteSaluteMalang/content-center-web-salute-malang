@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useServerFn } from "@tanstack/react-start";
 import { sendNotification, type NotifyEvent } from "@/lib/notifications.functions";
 import { toast } from "sonner";
 import {
@@ -179,7 +178,7 @@ const columns = [
 
 function Index() {
   const navigate = useNavigate();
-  const notify = useServerFn(sendNotification);
+  const notify = sendNotification;
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(emptySettings);
@@ -366,10 +365,7 @@ function Index() {
     };
 
     if (editing) {
-      const { error } = await supabase
-        .from("content_items")
-        .update(payload)
-        .eq("id", editing.id);
+      const { error } = await supabase.from("content_items").update(payload).eq("id", editing.id);
       setSavingItem(false);
       if (error) {
         toast.error("Gagal menyimpan konten");
@@ -780,9 +776,7 @@ function Index() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">
-              Pengaturan Notifikasi Real-time
-            </DialogTitle>
+            <DialogTitle className="text-lg font-bold">Pengaturan Notifikasi Real-time</DialogTitle>
             <DialogDescription>
               Atur bagaimana dan kapan Anda ingin menerima pemberitahuan perubahan konten.
             </DialogDescription>
@@ -898,7 +892,6 @@ function Index() {
                   mengirim pesan permintaan kode.
                 </p>
               </div>
-
             </div>
 
             <div className="space-y-3">
