@@ -176,7 +176,7 @@ function Index() {
             </SheetTrigger>
             <SheetContent side="left" className="w-64 border-none bg-sidebar p-0">
               <SheetTitle className="sr-only">Navigasi</SheetTitle>
-              <SidebarNav />
+              <SidebarNav onLogout={handleLogout} />
             </SheetContent>
           </Sheet>
 
