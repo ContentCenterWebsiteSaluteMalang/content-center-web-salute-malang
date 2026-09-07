@@ -14,6 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_items: {
+        Row: {
+          created_at: string
+          cta_link: string | null
+          cta_text: string | null
+          id: string
+          konten_text: string | null
+          media_url: string | null
+          notes: string | null
+          page: string
+          referensi: string | null
+          screenshot_desktop: string | null
+          screenshot_mobile: string | null
+          section: string
+          status: string
+          subpage: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          id?: string
+          konten_text?: string | null
+          media_url?: string | null
+          notes?: string | null
+          page: string
+          referensi?: string | null
+          screenshot_desktop?: string | null
+          screenshot_mobile?: string | null
+          section: string
+          status?: string
+          subpage?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          id?: string
+          konten_text?: string | null
+          media_url?: string | null
+          notes?: string | null
+          page?: string
+          referensi?: string | null
+          screenshot_desktop?: string | null
+          screenshot_mobile?: string | null
+          section?: string
+          status?: string
+          subpage?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          created_at: string
+          email_address: string | null
+          email_enabled: boolean
+          notify_new: boolean
+          notify_notes: boolean
+          notify_status: boolean
+          updated_at: string
+          user_id: string
+          wa_api_key: string | null
+          wa_enabled: boolean
+          wa_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          email_address?: string | null
+          email_enabled?: boolean
+          notify_new?: boolean
+          notify_notes?: boolean
+          notify_status?: boolean
+          updated_at?: string
+          user_id: string
+          wa_api_key?: string | null
+          wa_enabled?: boolean
+          wa_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          email_address?: string | null
+          email_enabled?: boolean
+          notify_new?: boolean
+          notify_notes?: boolean
+          notify_status?: boolean
+          updated_at?: string
+          user_id?: string
+          wa_api_key?: string | null
+          wa_enabled?: boolean
+          wa_number?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
