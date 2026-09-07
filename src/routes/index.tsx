@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutGrid,
@@ -16,6 +16,7 @@ import {
   Trash2,
   Menu,
   User,
+  LogIn,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,16 @@ function SidebarNav() {
           </button>
         ))}
       </nav>
+
+      <div className="mt-auto px-3 pb-6 pt-4">
+        <Link
+          to="/auth"
+          className="flex items-center gap-3 rounded-lg border border-sidebar-border px-3 py-2.5 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+        >
+          <LogIn className="h-4.5 w-4.5" />
+          Login Admin
+        </Link>
+      </div>
     </div>
   );
 }
