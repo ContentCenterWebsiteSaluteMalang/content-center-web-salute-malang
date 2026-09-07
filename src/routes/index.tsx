@@ -633,7 +633,7 @@ function Index() {
                 {activeTab}
               </h2>
               <p className="mt-2 max-w-[500px] text-sm text-muted-foreground">
-                Fitur {activeTab} sedang dalam pengembangan.
+                Fitur {activeTab} sedang dalam pengembang.
               </p>
             </div>
           )}
