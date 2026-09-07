@@ -371,7 +371,10 @@ function Index() {
         .update(payload)
         .eq("id", editing.id);
       setSavingItem(false);
-      if (error) return toast.error("Gagal menyimpan konten");
+      if (error) {
+        toast.error("Gagal menyimpan konten");
+        return;
+      }
       toast.success("Konten diperbarui");
       setFormOpen(false);
       await loadItems();
@@ -394,7 +397,10 @@ function Index() {
         .from("content_items")
         .insert({ ...payload, user_id: auth.user.id });
       setSavingItem(false);
-      if (error) return toast.error("Gagal menambahkan konten");
+      if (error) {
+        toast.error("Gagal menambahkan konten");
+        return;
+      }
       toast.success("Konten ditambahkan");
       setFormOpen(false);
       await loadItems();
@@ -408,7 +414,10 @@ function Index() {
 
   const deleteItem = async (item: ContentItem) => {
     const { error } = await supabase.from("content_items").delete().eq("id", item.id);
-    if (error) return toast.error("Gagal menghapus konten");
+    if (error) {
+      toast.error("Gagal menghapus konten");
+      return;
+    }
     toast.success("Konten dihapus");
     await loadItems();
   };
