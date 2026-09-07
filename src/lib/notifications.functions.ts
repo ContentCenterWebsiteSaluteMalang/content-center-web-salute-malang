@@ -40,8 +40,70 @@ export const sendNotification = createServerFn({ method: "POST" })
 
     if (!eventAllowed) return { results, skipped: "event_disabled" as const };
 
-    // WhatsApp via CallMeBot (free)
-    if (settings.wa_enabled && settings.wa_number && settings.wa_api_key) {
+    const provider = (settings as { wa_provider?: string }).wa_provider ?? "callmebot";
+    const baseUrl = ((settings as { wa_base_url?: string | null }).wa_base_url ?? "").replace(
+      /\/+$/,
+      "",
+    );
+    const waToken = (settings as { wa_token?: string | null }).wa_token ?? "";
+
+    // WhatsApp via Apify actor "leadsbrary/automate-whatsapp-in-one-api"
+    if (provider === "apify" && settings.wa_enabled) {
+      if (!baseUrl || !waToken || !settings.wa_number) {
+        results.push({
+          channel: "whatsapp",
+          sent: false,
+          reason: "Alamat layanan, token, atau nomor WhatsApp belum diisi.",
+        });
+      } else {
+        try {
+          const res = await fetch(`${baseUrl}/send`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${waToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              waitForResult: true,
+              confirmRecipientConsent: true,
+              sendMessages: [
+                {
+                  to: `${normalizeNumber(settings.wa_number)}@c.us`,
+                  message: `*${data.title}*\n${data.body}`,
+                },
+              ],
+            }),
+          });
+          const text = await res.text();
+          let ok = res.ok;
+          let reason = text.slice(0, 300);
+          try {
+            const json = JSON.parse(text) as {
+              ok?: boolean;
+              success?: boolean;
+              error?: string;
+              message?: string;
+              results?: { status?: string; error?: string }[];
+            };
+            if (json.ok === false || json.success === false) ok = false;
+            const failed = json.results?.find(
+              (r) => r.status && r.status.toLowerCase() !== "sent" && r.status !== "ok",
+            );
+            if (failed) ok = false;
+            reason = failed?.error ?? json.error ?? json.message ?? reason;
+          } catch {
+            /* keep raw text as reason */
+          }
+          if (res.status === 401 || res.status === 403)
+            reason = "Token akses ditolak. Salin ulang token dari Control Center.";
+          if (res.status === 404)
+            reason = "Alamat layanan tidak ditemukan. Pastikan URL actor masih berjalan.";
+          results.push({ channel: "whatsapp", sent: ok, ...(ok ? {} : { reason }) });
+        } catch (err) {
+          results.push({ channel: "whatsapp", sent: false, reason: String(err).slice(0, 200) });
+        }
+      }
+    } else if (settings.wa_enabled && settings.wa_number && settings.wa_api_key) {
       try {
         const url =
           "https://api.callmebot.com/whatsapp.php?phone=" +
