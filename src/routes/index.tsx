@@ -287,7 +287,7 @@ function Index() {
                 <div key={label} className="flex items-center gap-3">
                   <Checkbox
                     id={`check-${i}`}
-                    checked={checks[i]}
+                    checked={checks[i] ?? false}
                     onCheckedChange={() => toggleCheck(i)}
                   />
                   <label htmlFor={`check-${i}`} className="text-sm text-foreground">
