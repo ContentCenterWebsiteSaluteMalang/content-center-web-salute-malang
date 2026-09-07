@@ -17,7 +17,7 @@ export async function sendNotification({ data }: { data: Payload }) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  const results: { channel: "email"; sent: boolean; reason?: string }[] = [];
+  const results: { channel: "webhook"; sent: boolean; reason?: string }[] = [];
 
   if (!settings) {
     return { results, skipped: "no_settings" as const };
@@ -31,9 +31,27 @@ export async function sendNotification({ data }: { data: Payload }) {
 
   if (!eventAllowed) return { results, skipped: "event_disabled" as const };
 
-  // Email
-  if (settings.email_enabled && settings.email_address) {
-    results.push({ channel: "email", sent: false, reason: "email_domain_pending" });
+  // Webhook
+  if (settings.webhook_enabled && settings.webhook_url) {
+    try {
+      const res = await fetch(settings.webhook_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: data.event,
+          title: data.title,
+          body: data.body,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) {
+        results.push({ channel: "webhook", sent: true });
+      } else {
+        results.push({ channel: "webhook", sent: false, reason: `HTTP ${res.status}` });
+      }
+    } catch (err) {
+      results.push({ channel: "webhook", sent: false, reason: String(err) });
+    }
   }
 
   return { results, skipped: null };

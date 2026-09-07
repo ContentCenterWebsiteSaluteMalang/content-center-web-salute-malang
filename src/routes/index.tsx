@@ -94,16 +94,16 @@ type ContentItem = {
 };
 
 type Settings = {
-  email_enabled: boolean;
-  email_address: string;
+  webhook_enabled: boolean;
+  webhook_url: string;
   notify_new: boolean;
   notify_status: boolean;
   notify_notes: boolean;
 };
 
 const emptySettings: Settings = {
-  email_enabled: false,
-  email_address: "",
+  webhook_enabled: false,
+  webhook_url: "",
   notify_new: true,
   notify_status: true,
   notify_notes: true,
@@ -199,47 +199,6 @@ function Index() {
   const [pageFilter, setPageFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<ContentItem | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [savingItem, setSavingItem] = useState(false);
-  const [uploadingMobile, setUploadingMobile] = useState(false);
-  const [uploadingDesktop, setUploadingDesktop] = useState(false);
-
-  const handleUploadImage = async (file: File, type: "mobile" | "desktop") => {
-    if (!file) return;
-
-    if (type === "mobile") setUploadingMobile(true);
-    else setUploadingDesktop(true);
-
-    try {
-      const { data, error } = await supabase.storage
-        .from("content_images")
-        .upload(`${Date.now()}_${file.name}`, file);
-
-      if (error) {
-        toast.error(`Gagal upload screenshot ${type}`);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from("content_images")
-        .getPublicUrl(data.path);
-
-      if (type === "mobile") {
-        setForm({ ...form, screenshot_mobile: publicUrlData.publicUrl });
-      } else {
-        setForm({ ...form, screenshot_desktop: publicUrlData.publicUrl });
-      }
-      toast.success(`Screenshot ${type} berhasil diupload`);
-    } catch (e) {
-      toast.error(`Terjadi kesalahan saat upload`);
-    } finally {
-      if (type === "mobile") setUploadingMobile(false);
-      else setUploadingDesktop(false);
-    }
-  };
-
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -269,8 +228,8 @@ function Index() {
     const { data } = await supabase.from("notification_settings").select("*").maybeSingle();
     if (data) {
       setSettings({
-        email_enabled: data.email_enabled,
-        email_address: data.email_address ?? "",
+        webhook_enabled: data.webhook_enabled,
+        webhook_url: data.webhook_url ?? "",
         notify_new: data.notify_new,
         notify_status: data.notify_status,
         notify_notes: data.notify_notes,
@@ -292,11 +251,18 @@ function Index() {
   const runNotify = async (event: NotifyEvent, title: string, body: string) => {
     try {
       const res = await notify({ data: { event, title, body } });
-      const mail = res.results.find((r) => r.channel === "email");
-      if (mail && !mail.sent)
-        toast.message("Email belum aktif", {
-          description: "Domain pengirim email masih menunggu penyiapan.",
-        });
+      const webhook = res.results.find((r) => r.channel === "webhook");
+      
+      if (event === "test") {
+        if (webhook?.sent) {
+          toast.success("Notifikasi Webhook berhasil dikirim!");
+        } else if (webhook) {
+          toast.error("Webhook gagal dikirim", {
+            description: webhook.reason,
+          });
+        }
+      }
+      
       if (res.skipped === "no_settings")
         toast.message("Simpan Pengaturan Notifikasi dulu agar pemberitahuan terkirim.");
     } catch {
@@ -310,8 +276,8 @@ function Index() {
     if (!auth.user) return;
     const { error } = await supabase.from("notification_settings").upsert({
       user_id: auth.user.id,
-      email_enabled: settings.email_enabled,
-      email_address: settings.email_address || null,
+      webhook_enabled: settings.webhook_enabled,
+      webhook_url: settings.webhook_url || null,
       notify_new: settings.notify_new,
       notify_status: settings.notify_status,
       notify_notes: settings.notify_notes,
@@ -340,105 +306,12 @@ function Index() {
     if (!auth.user) return;
     await supabase.from("notification_settings").upsert({
       user_id: auth.user.id,
-      email_enabled: settings.email_enabled,
-      email_address: settings.email_address || null,
+      webhook_enabled: settings.webhook_enabled,
+      webhook_url: settings.webhook_url || null,
       notify_new: settings.notify_new,
       notify_status: settings.notify_status,
       notify_notes: settings.notify_notes,
     });
-  };
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm({ ...emptyForm });
-    setFormOpen(true);
-  };
-
-  const openEdit = (item: ContentItem) => {
-    setEditing(item);
-    setForm({
-      page: item.page,
-      subpage: item.subpage ?? "",
-      section: item.section,
-      konten_text: item.konten_text ?? "",
-      media_url: item.media_url ?? "",
-      cta_text: item.cta_text ?? "",
-      cta_link: item.cta_link ?? "",
-      referensi: item.referensi ?? "",
-      screenshot_mobile: item.screenshot_mobile ?? "",
-      screenshot_desktop: item.screenshot_desktop ?? "",
-      status: item.status,
-      notes: item.notes ?? "",
-    });
-    setFormOpen(true);
-  };
-
-  const saveItem = async () => {
-    if (!form.page.trim() || !form.section.trim()) {
-      toast.error("Halaman dan Section wajib diisi");
-      return;
-    }
-    setSavingItem(true);
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
-
-    const payload = {
-      page: form.page.trim(),
-      subpage: form.subpage || null,
-      section: form.section.trim(),
-      konten_text: form.konten_text || null,
-      media_url: form.media_url || null,
-      cta_text: form.cta_text || null,
-      cta_link: form.cta_link || null,
-      referensi: form.referensi || null,
-      screenshot_mobile: form.screenshot_mobile || null,
-      screenshot_desktop: form.screenshot_desktop || null,
-      status: form.status,
-      notes: form.notes || null,
-    };
-
-    if (editing) {
-      const { error } = await supabase.from("content_items").update(payload).eq("id", editing.id);
-      setSavingItem(false);
-      if (error) {
-        toast.error("Gagal menyimpan konten");
-        return;
-      }
-      toast.success("Konten diperbarui");
-      setFormOpen(false);
-      await loadItems();
-      if (editing.status !== form.status) {
-        await runNotify(
-          "status",
-          "Status konten diubah",
-          `${payload.page} — ${payload.section}: ${editing.status} → ${form.status}`,
-        );
-      }
-      if ((editing.notes ?? "") !== (payload.notes ?? "") && payload.notes) {
-        await runNotify(
-          "notes",
-          "Catatan baru pada konten",
-          `${payload.page} — ${payload.section}: ${payload.notes}`,
-        );
-      }
-    } else {
-      const { error } = await supabase
-        .from("content_items")
-        .insert({ ...payload, user_id: auth.user.id });
-      setSavingItem(false);
-      if (error) {
-        toast.error("Gagal menambahkan konten");
-        return;
-      }
-      toast.success("Konten ditambahkan");
-      setFormOpen(false);
-      await loadItems();
-      await runNotify(
-        "new",
-        "Konten baru ditambahkan",
-        `${payload.page} — ${payload.section} (status: ${payload.status})`,
-      );
-    }
   };
 
   const deleteItem = async (item: ContentItem) => {
@@ -523,7 +396,7 @@ function Index() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button onClick={openCreate} className="font-semibold shadow-sm">
+                  <Button onClick={() => navigate({ to: "/form" })} className="font-semibold shadow-sm">
                     <Plus className="h-4 w-4" />
                     Tambah Konten
                   </Button>
@@ -659,7 +532,7 @@ function Index() {
                                 variant="ghost"
                                 size="icon"
                                 aria-label="Edit konten"
-                                onClick={() => openEdit(item)}
+                                onClick={() => navigate({ to: "/form", search: { id: item.id } })}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
@@ -698,20 +571,20 @@ function Index() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <Switch
-                        checked={settings.email_enabled}
-                        onCheckedChange={(v) => setSettings({ ...settings, email_enabled: v })}
-                        id="notif-email"
+                        checked={settings.webhook_enabled}
+                        onCheckedChange={(v) => setSettings({ ...settings, webhook_enabled: v })}
+                        id="notif-webhook"
                       />
-                      <label htmlFor="notif-email" className="text-sm font-semibold text-foreground">
-                        Notifikasi Email
+                      <label htmlFor="notif-webhook" className="text-sm font-semibold text-foreground">
+                        Notifikasi Webhook (Make.com)
                       </label>
                     </div>
                     <Input
-                      placeholder="Masukkan Alamat Email"
-                      type="email"
-                      value={settings.email_address}
-                      onChange={(e) => setSettings({ ...settings, email_address: e.target.value })}
-                      disabled={!settings.email_enabled}
+                      placeholder="Masukkan Webhook URL dari Make.com"
+                      type="url"
+                      value={settings.webhook_url}
+                      onChange={(e) => setSettings({ ...settings, webhook_url: e.target.value })}
+                      disabled={!settings.webhook_enabled}
                     />
                   </div>
 
@@ -766,179 +639,6 @@ function Index() {
           )}
         </main>
       </div>
-
-      {/* Form konten */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">
-              {editing ? "Edit Konten" : "Tambah Konten"}
-            </DialogTitle>
-            <DialogDescription>
-              Lengkapi kebutuhan konten untuk satu section halaman.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-2 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Halaman *</label>
-              <Input
-                value={form.page}
-                onChange={(e) => setForm({ ...form, page: e.target.value })}
-                placeholder="Beranda"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Sub Halaman</label>
-              <Input
-                value={form.subpage}
-                onChange={(e) => setForm({ ...form, subpage: e.target.value })}
-                placeholder="—"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm font-medium">Section / Fitur *</label>
-              <Input
-                value={form.section}
-                onChange={(e) => setForm({ ...form, section: e.target.value })}
-                placeholder="1. Hero Banner"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm font-medium">Konten Text</label>
-              <Textarea
-                value={form.konten_text}
-                onChange={(e) => setForm({ ...form, konten_text: e.target.value })}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Media (URL)</label>
-              <Input
-                value={form.media_url}
-                onChange={(e) => setForm({ ...form, media_url: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Referensi Web</label>
-              <Input
-                value={form.referensi}
-                onChange={(e) => setForm({ ...form, referensi: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Teks Tombol CTA</label>
-              <Input
-                value={form.cta_text}
-                onChange={(e) => setForm({ ...form, cta_text: e.target.value })}
-                placeholder="Daftar"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Link CTA</label>
-              <Input
-                value={form.cta_link}
-                onChange={(e) => setForm({ ...form, cta_link: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Screenshot Mobile (URL)</label>
-              <div className="flex gap-2">
-                <Input
-                  value={form.screenshot_mobile}
-                  onChange={(e) => setForm({ ...form, screenshot_mobile: e.target.value })}
-                  placeholder="Atau pilih file..."
-                />
-                <div className="relative">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleUploadImage(e.target.files[0], "mobile");
-                        e.target.value = "";
-                      }
-                    }}
-                    disabled={uploadingMobile}
-                  />
-                  <Button variant="outline" type="button" disabled={uploadingMobile}>
-                    {uploadingMobile ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ImageIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Screenshot Desktop (URL)</label>
-              <div className="flex gap-2">
-                <Input
-                  value={form.screenshot_desktop}
-                  onChange={(e) => setForm({ ...form, screenshot_desktop: e.target.value })}
-                  placeholder="Atau pilih file..."
-                />
-                <div className="relative">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleUploadImage(e.target.files[0], "desktop");
-                        e.target.value = "";
-                      }
-                    }}
-                    disabled={uploadingDesktop}
-                  />
-                  <Button variant="outline" type="button" disabled={uploadingDesktop}>
-                    {uploadingDesktop ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ImageIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Status</label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm font-medium">Notes</label>
-              <Textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>
-              Batal
-            </Button>
-            <Button className="font-semibold" onClick={saveItem} disabled={savingItem}>
-              {savingItem && <Loader2 className="h-4 w-4 animate-spin" />}
-              Simpan Konten
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Pengaturan notifikasi dihilangkan dari modal, sekarang ada di tab Pengaturan */}
     </div>

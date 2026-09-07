@@ -295,8 +295,8 @@ function createMockSupabaseClient(): ReturnType<typeof createClient<Database>> {
 
       if (table === "notification_settings") {
         const defaultSettings = {
-          email_enabled: false,
-          email_address: "",
+          webhook_enabled: false,
+          webhook_url: "",
           notify_new: true,
           notify_status: true,
           notify_notes: true,

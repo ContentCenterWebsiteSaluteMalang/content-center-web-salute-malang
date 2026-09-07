@@ -68,8 +68,8 @@ export type Database = {
       notification_settings: {
         Row: {
           created_at: string;
-          email_address: string | null;
-          email_enabled: boolean;
+          webhook_url: string | null;
+          webhook_enabled: boolean;
           notify_new: boolean;
           notify_notes: boolean;
           notify_status: boolean;
@@ -78,8 +78,8 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
-          email_address?: string | null;
-          email_enabled?: boolean;
+          webhook_url?: string | null;
+          webhook_enabled?: boolean;
           notify_new?: boolean;
           notify_notes?: boolean;
           notify_status?: boolean;
@@ -88,8 +88,8 @@ export type Database = {
         };
         Update: {
           created_at?: string;
-          email_address?: string | null;
-          email_enabled?: boolean;
+          webhook_url?: string | null;
+          webhook_enabled?: boolean;
           notify_new?: boolean;
           notify_notes?: boolean;
           notify_status?: boolean;

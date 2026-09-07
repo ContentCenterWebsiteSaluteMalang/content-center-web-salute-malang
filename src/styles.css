@@ -148,9 +148,3 @@
   }
 }
 
-/* Twilio WhatsApp UI cleanup: CallMeBot setup controls are no longer used. */
-.space-y-3:has(> input[placeholder*="Kode API WhatsApp"]) > input[placeholder*="Kode API WhatsApp"],
-.space-y-3:has(> input[placeholder*="Kode API WhatsApp"]) > div.flex.flex-wrap.gap-2,
-.space-y-3:has(> input[placeholder*="Kode API WhatsApp"]) > div.rounded-md.bg-muted {
-  display: none;
-}

@@ -42,8 +42,8 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
       maybeSingle: async () => ({
         data: {
           user_id: "demo-admin-id",
-          email_enabled: false,
-          email_address: null,
+          webhook_enabled: false,
+          webhook_url: null,
           notify_new: true,
           notify_status: true,
           notify_notes: true,
