@@ -297,9 +297,6 @@ function createMockSupabaseClient(): ReturnType<typeof createClient<Database>> {
         const defaultSettings = {
           email_enabled: false,
           email_address: "",
-          wa_enabled: false,
-          wa_number: "",
-          wa_api_key: "",
           notify_new: true,
           notify_status: true,
           notify_notes: true,

@@ -96,9 +96,6 @@ type ContentItem = {
 type Settings = {
   email_enabled: boolean;
   email_address: string;
-  wa_enabled: boolean;
-  wa_number: string;
-  wa_api_key: string;
   notify_new: boolean;
   notify_status: boolean;
   notify_notes: boolean;
@@ -107,9 +104,6 @@ type Settings = {
 const emptySettings: Settings = {
   email_enabled: false,
   email_address: "",
-  wa_enabled: false,
-  wa_number: "",
-  wa_api_key: "",
   notify_new: true,
   notify_status: true,
   notify_notes: true,
@@ -277,9 +271,6 @@ function Index() {
       setSettings({
         email_enabled: data.email_enabled,
         email_address: data.email_address ?? "",
-        wa_enabled: data.wa_enabled,
-        wa_number: data.wa_number ?? "",
-        wa_api_key: data.wa_api_key ?? "",
         notify_new: data.notify_new,
         notify_status: data.notify_status,
         notify_notes: data.notify_notes,
@@ -301,10 +292,7 @@ function Index() {
   const runNotify = async (event: NotifyEvent, title: string, body: string) => {
     try {
       const res = await notify({ data: { event, title, body } });
-      const wa = res.results.find((r) => r.channel === "whatsapp");
       const mail = res.results.find((r) => r.channel === "email");
-      if (wa?.sent) toast.success("Notifikasi WhatsApp terkirim");
-      else if (wa) toast.error("WhatsApp gagal: " + (wa.reason ?? "tidak diketahui"));
       if (mail && !mail.sent)
         toast.message("Email belum aktif", {
           description: "Domain pengirim email masih menunggu penyiapan.",
@@ -324,9 +312,6 @@ function Index() {
       user_id: auth.user.id,
       email_enabled: settings.email_enabled,
       email_address: settings.email_address || null,
-      wa_enabled: settings.wa_enabled,
-      wa_number: settings.wa_number || null,
-      wa_api_key: settings.wa_api_key || null,
       notify_new: settings.notify_new,
       notify_status: settings.notify_status,
       notify_notes: settings.notify_notes,
@@ -357,9 +342,6 @@ function Index() {
       user_id: auth.user.id,
       email_enabled: settings.email_enabled,
       email_address: settings.email_address || null,
-      wa_enabled: settings.wa_enabled,
-      wa_number: settings.wa_number || null,
-      wa_api_key: settings.wa_api_key || null,
       notify_new: settings.notify_new,
       notify_status: settings.notify_status,
       notify_notes: settings.notify_notes,
@@ -541,10 +523,6 @@ function Index() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button onClick={() => setOpen(true)} className="font-semibold shadow-sm">
-                    <Settings className="h-4 w-4" />
-                    Pengaturan Notifikasi
-                  </Button>
                   <Button onClick={openCreate} className="font-semibold shadow-sm">
                     <Plus className="h-4 w-4" />
                     Tambah Konten
@@ -704,6 +682,78 @@ function Index() {
             </>
           ) : activeTab === "Akses Admin" ? (
             <AdminAccessView />
+          ) : activeTab === "Pengaturan" ? (
+            <div className="max-w-2xl">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                  Pengaturan Notifikasi Real-time
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Atur bagaimana dan kapan Anda ingin menerima pemberitahuan perubahan konten.
+                </p>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={settings.email_enabled}
+                        onCheckedChange={(v) => setSettings({ ...settings, email_enabled: v })}
+                        id="notif-email"
+                      />
+                      <label htmlFor="notif-email" className="text-sm font-semibold text-foreground">
+                        Notifikasi Email
+                      </label>
+                    </div>
+                    <Input
+                      placeholder="Masukkan Alamat Email"
+                      type="email"
+                      value={settings.email_address}
+                      onChange={(e) => setSettings({ ...settings, email_address: e.target.value })}
+                      disabled={!settings.email_enabled}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-foreground">Kirim notifikasi saat:</p>
+                    {(
+                      [
+                        ["notify_new", "Konten baru ditambahkan"],
+                        ["notify_status", "Status konten diubah (Draft ke Final)"],
+                        ["notify_notes", "Ada catatan/notes baru"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <Checkbox
+                          id={key}
+                          checked={settings[key]}
+                          onCheckedChange={(v) => setSettings({ ...settings, [key]: v === true })}
+                        />
+                        <label htmlFor={key} className="text-sm text-foreground">
+                          {label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
+                    <Button variant="outline" onClick={sendTest} disabled={testing}>
+                      {testing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      Kirim Uji Coba
+                    </Button>
+                    <Button className="font-semibold" onClick={saveSettings} disabled={savingSettings}>
+                      {savingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Simpan Pengaturan
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex h-[60vh] flex-col items-center justify-center text-center">
               <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
@@ -890,172 +940,7 @@ function Index() {
         </DialogContent>
       </Dialog>
 
-      {/* Pengaturan notifikasi */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Pengaturan Notifikasi Real-time</DialogTitle>
-            <DialogDescription>
-              Atur bagaimana dan kapan Anda ingin menerima pemberitahuan perubahan konten.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5 py-2">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={settings.email_enabled}
-                  onCheckedChange={(v) => setSettings({ ...settings, email_enabled: v })}
-                  id="notif-email"
-                />
-                <label htmlFor="notif-email" className="text-sm font-semibold text-foreground">
-                  Notifikasi Email
-                </label>
-              </div>
-              <Input
-                placeholder="Masukkan Alamat Email"
-                type="email"
-                value={settings.email_address}
-                onChange={(e) => setSettings({ ...settings, email_address: e.target.value })}
-                disabled={!settings.email_enabled}
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={settings.wa_enabled}
-                  onCheckedChange={(v) => setSettings({ ...settings, wa_enabled: v })}
-                  id="notif-wa"
-                />
-                <label htmlFor="notif-wa" className="text-sm font-semibold text-foreground">
-                  Notifikasi WhatsApp
-                </label>
-              </div>
-              <Input
-                placeholder="Masukkan Nomor WhatsApp (08xx / 62xx)"
-                type="tel"
-                value={settings.wa_number}
-                onChange={(e) => setSettings({ ...settings, wa_number: e.target.value })}
-                disabled={!settings.wa_enabled}
-              />
-              <Input
-                placeholder="Kode API WhatsApp (gratis dari CallMeBot)"
-                value={settings.wa_api_key}
-                onChange={(e) => setSettings({ ...settings, wa_api_key: e.target.value })}
-                disabled={!settings.wa_enabled}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!settings.wa_enabled}
-                  onClick={() =>
-                    window.open(
-                      "https://wa.me/34644519523?text=" +
-                        encodeURIComponent("I allow callmebot to send me messages"),
-                      "_blank",
-                      "noopener",
-                    )
-                  }
-                >
-                  1. Minta kode lewat WhatsApp
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!settings.wa_enabled}
-                  onClick={() =>
-                    window.open(
-                      "https://wa.me/34621331709?text=" +
-                        encodeURIComponent("I allow callmebot to send me messages"),
-                      "_blank",
-                      "noopener",
-                    )
-                  }
-                >
-                  Nomor cadangan
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!settings.wa_enabled}
-                  onClick={() => setSettings({ ...settings, wa_number: "", wa_api_key: "" })}
-                >
-                  Kosongkan nomor & kode
-                </Button>
-              </div>
-              <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-semibold text-foreground">Cara isi ulang (gratis):</p>
-                <ol className="list-decimal space-y-1 pl-4">
-                  <li>
-                    Tekan tombol di atas — WhatsApp terbuka dengan pesan siap kirim ke +34 644 51 95
-                    23. Kirim pesannya persis apa adanya, tanpa diubah.
-                  </li>
-                  <li>
-                    Balasan berisi kode bisa datang sampai ±2 menit. Kalau lewat 5 menit belum
-                    dibalas, coba tombol <span className="font-semibold">Nomor cadangan</span> (+34
-                    621 33 17 09).
-                  </li>
-                  <li>
-                    Salin kode dari balasan (hanya angkanya) ke kolom kode di atas, isi nomor
-                    WhatsApp Anda, lalu tekan <span className="font-semibold">Kirim Uji Coba</span>.
-                  </li>
-                </ol>
-                <p className="mt-2">
-                  Catatan: nomor WhatsApp yang Anda isi harus sama persis dengan nomor yang dipakai
-                  mengirim pesan permintaan kode.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-foreground">Kirim notifikasi saat:</p>
-              {(
-                [
-                  ["notify_new", "Konten baru ditambahkan"],
-                  ["notify_status", "Status konten diubah (Draft ke Final)"],
-                  ["notify_notes", "Ada catatan/notes baru"],
-                ] as const
-              ).map(([key, label]) => (
-                <div key={key} className="flex items-center gap-3">
-                  <Checkbox
-                    id={key}
-                    checked={settings[key]}
-                    onCheckedChange={(v) => setSettings({ ...settings, [key]: v === true })}
-                  />
-                  <label htmlFor={key} className="text-sm text-foreground">
-                    {label}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" onClick={sendTest} disabled={testing}>
-              {testing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              Kirim Uji Coba
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Batal
-              </Button>
-              <Button className="font-semibold" onClick={saveSettings} disabled={savingSettings}>
-                {savingSettings && <Loader2 className="h-4 w-4 animate-spin" />}
-                Simpan Pengaturan
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Pengaturan notifikasi dihilangkan dari modal, sekarang ada di tab Pengaturan */}
     </div>
   );
 }

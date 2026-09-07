@@ -75,9 +75,6 @@ export type Database = {
           notify_status: boolean;
           updated_at: string;
           user_id: string;
-          wa_api_key: string | null;
-          wa_enabled: boolean;
-          wa_number: string | null;
         };
         Insert: {
           created_at?: string;
@@ -88,9 +85,6 @@ export type Database = {
           notify_status?: boolean;
           updated_at?: string;
           user_id: string;
-          wa_api_key?: string | null;
-          wa_enabled?: boolean;
-          wa_number?: string | null;
         };
         Update: {
           created_at?: string;
@@ -101,9 +95,6 @@ export type Database = {
           notify_status?: boolean;
           updated_at?: string;
           user_id?: string;
-          wa_api_key?: string | null;
-          wa_enabled?: boolean;
-          wa_number?: string | null;
         };
         Relationships: [];
       };
