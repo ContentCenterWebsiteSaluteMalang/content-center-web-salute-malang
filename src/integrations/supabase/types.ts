@@ -82,8 +82,11 @@ export type Database = {
           updated_at: string
           user_id: string
           wa_api_key: string | null
+          wa_base_url: string | null
           wa_enabled: boolean
           wa_number: string | null
+          wa_provider: string
+          wa_token: string | null
         }
         Insert: {
           created_at?: string
@@ -95,8 +98,11 @@ export type Database = {
           updated_at?: string
           user_id: string
           wa_api_key?: string | null
+          wa_base_url?: string | null
           wa_enabled?: boolean
           wa_number?: string | null
+          wa_provider?: string
+          wa_token?: string | null
         }
         Update: {
           created_at?: string
@@ -108,8 +114,11 @@ export type Database = {
           updated_at?: string
           user_id?: string
           wa_api_key?: string | null
+          wa_base_url?: string | null
           wa_enabled?: boolean
           wa_number?: string | null
+          wa_provider?: string
+          wa_token?: string | null
         }
         Relationships: []
       }
