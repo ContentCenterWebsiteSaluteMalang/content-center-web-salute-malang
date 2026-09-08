@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendNotification, type NotifyEvent } from "@/lib/notifications.functions";
 import { toast } from "sonner";
 import {
-  LayoutGrid,
   FileText,
   Image as ImageIcon,
   Settings,
@@ -68,7 +67,6 @@ export const Route = createFileRoute("/")({
 });
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutGrid },
   { label: "Halaman Web", icon: FileText },
   { label: "Media Library", icon: ImageIcon },
   { label: "Akses Admin", icon: User },
@@ -364,7 +362,6 @@ function Index() {
           </Sheet>
 
           <nav className="truncate text-sm text-muted-foreground">
-            Dashboard <span className="px-1">/</span>
             <span className="font-semibold text-foreground">{activeTab}</span>
           </nav>
 
