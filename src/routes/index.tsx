@@ -511,16 +511,20 @@ function Index() {
                           </td>
                           <td className="px-4 py-4">
                             <span className="flex items-center gap-3 text-muted-foreground">
-                              <Smartphone
-                                className={
-                                  item.screenshot_mobile ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                                }
-                              />
-                              <Monitor
-                                className={
-                                  item.screenshot_desktop ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                                }
-                              />
+                              {item.screenshot_mobile ? (
+                                <a href={item.screenshot_mobile} target="_blank" rel="noreferrer">
+                                  <Smartphone className="h-5 w-5 text-foreground" />
+                                </a>
+                              ) : (
+                                <Smartphone className="h-5 w-5 opacity-40" />
+                              )}
+                              {item.screenshot_desktop ? (
+                                <a href={item.screenshot_desktop} target="_blank" rel="noreferrer">
+                                  <Monitor className="h-5 w-5 text-foreground" />
+                                </a>
+                              ) : (
+                                <Monitor className="h-5 w-5 opacity-40" />
+                              )}
                             </span>
                           </td>
                           <td className="px-4 py-4">
