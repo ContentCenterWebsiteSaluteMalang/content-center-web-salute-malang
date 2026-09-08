@@ -48,16 +48,16 @@ import { AdminAccessView } from "@/components/AdminAccessView";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Content Matrix CMS — Guideline Konten Website" },
+      { title: "Content Center Web Salute Malang" },
       {
         name: "description",
         content:
-          "Dashboard admin Content Matrix CMS untuk mengelola guideline konten website antara developer dan client.",
+          "Content Center Web Salute Malang untuk mengelola guideline konten website antara developer dan client.",
       },
-      { property: "og:title", content: "Content Matrix CMS — Guideline Konten Website" },
+      { property: "og:title", content: "Content Center Web Salute Malang" },
       {
         property: "og:description",
-        content: "Kelola kebutuhan konten antara Developer dan Client dalam satu dashboard.",
+        content: "Kelola kebutuhan konten antara Developer dan Client dalam satu tempat.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -134,7 +134,7 @@ function SidebarNav({
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-6">
-        <span className="text-lg font-bold tracking-tight">Content Matrix CMS</span>
+        <span className="text-lg font-bold tracking-tight">Content Center Web Salute Malang</span>
       </div>
       <nav className="flex flex-col gap-1 px-3">
         {navItems.map((item) => {
@@ -293,7 +293,7 @@ function Index() {
     await saveSettingsSilently();
     await runNotify(
       "test",
-      "Uji Notifikasi Content Matrix CMS",
+      "Uji Notifikasi Content Center Web Salute Malang",
       "Ini pesan uji coba. Jika Anda menerima ini, notifikasi sudah aktif.",
     );
     setTesting(false);
