@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendNotification, type NotifyEvent } from "@/lib/notifications.functions";
 import { toast } from "sonner";
 import {
+  LayoutGrid,
   FileText,
   Image as ImageIcon,
   Settings,
@@ -48,16 +49,16 @@ import { AdminAccessView } from "@/components/AdminAccessView";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Content Center Web Salute Malang" },
+      { title: "Content Matrix CMS — Guideline Konten Website" },
       {
         name: "description",
         content:
-          "Content Center Web Salute Malang untuk mengelola guideline konten website antara developer dan client.",
+          "Dashboard admin Content Matrix CMS untuk mengelola guideline konten website antara developer dan client.",
       },
-      { property: "og:title", content: "Content Center Web Salute Malang" },
+      { property: "og:title", content: "Content Matrix CMS — Guideline Konten Website" },
       {
         property: "og:description",
-        content: "Kelola kebutuhan konten antara Developer dan Client dalam satu tempat.",
+        content: "Kelola kebutuhan konten antara Developer dan Client dalam satu dashboard.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -67,6 +68,7 @@ export const Route = createFileRoute("/")({
 });
 
 const navItems = [
+  { label: "Dashboard", icon: LayoutGrid },
   { label: "Halaman Web", icon: FileText },
   { label: "Media Library", icon: ImageIcon },
   { label: "Akses Admin", icon: User },
@@ -134,7 +136,7 @@ function SidebarNav({
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-6">
-        <span className="text-lg font-bold tracking-tight">Content Center Web Salute Malang</span>
+        <span className="text-lg font-bold tracking-tight">Content Matrix CMS</span>
       </div>
       <nav className="flex flex-col gap-1 px-3">
         {navItems.map((item) => {
@@ -170,16 +172,12 @@ function SidebarNav({
 }
 
 const columns = [
-  "Page & SubPage",
-  "Section/Fitur",
-  "Konten Text",
-  "Media (Image/Video)",
-  "Button & Link CTA",
-  "Referensi Web",
-  "Screenshot (Mobile & Desktop)",
+  "Bagian & Section",
+  "Konten & Media",
+  "Tautan & CTA",
   "Status",
-  "Notes",
-  "Action",
+  "Catatan",
+  "Aksi",
 ];
 
 function Index() {
@@ -293,7 +291,7 @@ function Index() {
     await saveSettingsSilently();
     await runNotify(
       "test",
-      "Uji Notifikasi Content Center Web Salute Malang",
+      "Uji Notifikasi Content Matrix CMS",
       "Ini pesan uji coba. Jika Anda menerima ini, notifikasi sudah aktif.",
     );
     setTesting(false);
@@ -338,13 +336,9 @@ function Index() {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
-        <SidebarNav activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
+    <div className="flex min-h-screen w-full flex-col bg-background">
+      <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
+        <div className="flex items-center gap-4">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Buka menu">
@@ -360,26 +354,41 @@ function Index() {
               />
             </SheetContent>
           </Sheet>
-
-          <nav className="truncate text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{activeTab}</span>
+          <span className="text-lg font-bold tracking-tight text-foreground hidden sm:block">Content Matrix CMS</span>
+          
+          <nav className="ml-6 hidden items-center gap-1 lg:flex">
+            {navItems.map((item) => {
+              const isActive = item.label === activeTab;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => setActiveTab(item.label)}
+                  className={
+                    isActive
+                      ? "flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
+                      : "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+                  }
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
+        </div>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <div className="relative hidden sm:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search..." className="w-48 pl-9 lg:w-64" />
-            </div>
-            <Button variant="outline" size="icon" className="relative" aria-label="Notifikasi">
-              <Bell className="h-4.5 w-4.5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-            </Button>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-muted-foreground ring-1 ring-border">
-              <User className="h-4.5 w-4.5" />
-            </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={handleLogout} className="hidden lg:flex">
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground ring-1 ring-border sm:h-9 sm:w-9">
+            <User className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
           </div>
-        </header>
+        </div>
+      </header>
 
+      <div className="flex min-w-0 flex-1 flex-col mx-auto w-full max-w-7xl">
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {activeTab === "Halaman Web" ? (
             <>
@@ -431,7 +440,7 @@ function Index() {
                 </div>
 
                 <div className="mt-4 overflow-x-auto">
-                  <table className="w-full min-w-[1100px] border-collapse text-sm">
+                  <table className="w-full border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-border">
                         {columns.map((col) => (
@@ -467,64 +476,58 @@ function Index() {
                           key={item.id}
                           className="border-b border-border/70 transition-colors hover:bg-secondary/60"
                         >
-                          <td className="whitespace-nowrap px-4 py-4 font-medium text-foreground">
-                            {item.page}
-                            {item.subpage ? (
-                              <span className="text-muted-foreground"> / {item.subpage}</span>
-                            ) : null}
+                          <td className="px-4 py-4 align-top">
+                            <div className="font-medium text-foreground">
+                              {item.page}
+                              {item.subpage ? <span className="text-muted-foreground"> / {item.subpage}</span> : null}
+                            </div>
+                            <div className="mt-1 text-sm text-muted-foreground">{item.section}</div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-4 text-foreground">
-                            {item.section}
-                          </td>
-                          <td className="max-w-[220px] truncate px-4 py-4 text-muted-foreground">
-                            {item.konten_text ?? "—"}
-                          </td>
-                          <td className="px-4 py-4 text-muted-foreground">
-                            {item.media_url ? (
-                              <a href={item.media_url} target="_blank" rel="noreferrer">
-                                <img
-                                  src={item.media_url}
-                                  alt={`Media untuk ${item.section}`}
-                                  loading="lazy"
-                                  className="h-10 w-16 rounded border object-cover"
-                                />
+                          <td className="max-w-[280px] px-4 py-4 align-top">
+                            <div className="line-clamp-2 text-foreground">
+                              {item.konten_text ?? "—"}
+                            </div>
+                            {item.media_url && (
+                              <a href={item.media_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
+                                <ImageIcon className="h-3.5 w-3.5" />
+                                Lihat Media
                               </a>
-                            ) : (
-                              <ImageIcon className="h-5 w-5 opacity-40" />
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-4">
-                            {item.cta_text ? (
-                              <span className="inline-flex items-center gap-2 text-foreground">
-                                <MousePointerClick className="h-4 w-4 text-muted-foreground" />
-                                {item.cta_text}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
+                          <td className="max-w-[240px] px-4 py-4 align-top text-muted-foreground">
+                            {item.cta_text && (
+                              <div className="mb-3 flex items-start gap-2 text-foreground">
+                                <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                <div>
+                                  <div className="font-medium">{item.cta_text}</div>
+                                  {item.cta_link && <div className="truncate text-xs text-muted-foreground">{item.cta_link}</div>}
+                                </div>
+                              </div>
+                            )}
+                            {item.referensi && (
+                              <div className="mb-2 truncate text-xs" title={item.referensi}>
+                                <span className="font-semibold">Ref:</span> {item.referensi}
+                              </div>
+                            )}
+                            {(item.screenshot_mobile || item.screenshot_desktop) && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="font-semibold">Shot:</span>
+                                <div className="flex items-center gap-1.5">
+                                  {item.screenshot_mobile && (
+                                    <a href={item.screenshot_mobile} target="_blank" rel="noreferrer" title="Mobile Screenshot">
+                                      <Smartphone className="h-3.5 w-3.5 text-primary hover:text-primary/80" />
+                                    </a>
+                                  )}
+                                  {item.screenshot_desktop && (
+                                    <a href={item.screenshot_desktop} target="_blank" rel="noreferrer" title="Desktop Screenshot">
+                                      <Monitor className="h-3.5 w-3.5 text-primary hover:text-primary/80" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </td>
-                          <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
-                            {item.referensi ?? "—"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="flex items-center gap-3 text-muted-foreground">
-                              {item.screenshot_mobile ? (
-                                <a href={item.screenshot_mobile} target="_blank" rel="noreferrer">
-                                  <Smartphone className="h-5 w-5 text-foreground" />
-                                </a>
-                              ) : (
-                                <Smartphone className="h-5 w-5 opacity-40" />
-                              )}
-                              {item.screenshot_desktop ? (
-                                <a href={item.screenshot_desktop} target="_blank" rel="noreferrer">
-                                  <Monitor className="h-5 w-5 text-foreground" />
-                                </a>
-                              ) : (
-                                <Monitor className="h-5 w-5 opacity-40" />
-                              )}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 align-top">
                             <span
                               className={
                                 item.status === "Final"
@@ -535,11 +538,11 @@ function Index() {
                               {item.status}
                             </span>
                           </td>
-                          <td className="max-w-[160px] truncate px-4 py-4 text-muted-foreground">
-                            {item.notes ?? ""}
+                          <td className="max-w-[160px] px-4 py-4 align-top text-muted-foreground">
+                            <div className="line-clamp-3 text-sm">{item.notes || "—"}</div>
                           </td>
-                          <td className="px-4 py-4">
-                            <span className="flex items-center gap-2">
+                          <td className="px-4 py-4 align-top">
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -556,7 +559,7 @@ function Index() {
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
-                            </span>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -645,7 +648,7 @@ function Index() {
                 {activeTab}
               </h2>
               <p className="mt-2 max-w-[500px] text-sm text-muted-foreground">
-                Fitur {activeTab} sedang dalam pengembang.
+                Fitur {activeTab} sedang dalam pengembangan.
               </p>
             </div>
           )}
