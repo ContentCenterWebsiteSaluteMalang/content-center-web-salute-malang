@@ -87,6 +87,8 @@ export type Database = {
           wa_number: string | null
           wa_provider: string
           wa_token: string | null
+          webhook_enabled: boolean
+          webhook_url: string | null
         }
         Insert: {
           created_at?: string
@@ -103,6 +105,8 @@ export type Database = {
           wa_number?: string | null
           wa_provider?: string
           wa_token?: string | null
+          webhook_enabled?: boolean
+          webhook_url?: string | null
         }
         Update: {
           created_at?: string
@@ -119,6 +123,8 @@ export type Database = {
           wa_number?: string | null
           wa_provider?: string
           wa_token?: string | null
+          webhook_enabled?: boolean
+          webhook_url?: string | null
         }
         Relationships: []
       }
