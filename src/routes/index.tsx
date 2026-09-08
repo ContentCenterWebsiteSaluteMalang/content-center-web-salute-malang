@@ -483,7 +483,18 @@ function Index() {
                             {item.konten_text ?? "—"}
                           </td>
                           <td className="px-4 py-4 text-muted-foreground">
-                            {item.media_url ? <ImageIcon className="h-5 w-5" /> : "—"}
+                            {item.media_url ? (
+                              <a href={item.media_url} target="_blank" rel="noreferrer">
+                                <img
+                                  src={item.media_url}
+                                  alt={`Media untuk ${item.section}`}
+                                  loading="lazy"
+                                  className="h-10 w-16 rounded border object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <ImageIcon className="h-5 w-5 opacity-40" />
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-4 py-4">
                             {item.cta_text ? (
@@ -500,16 +511,20 @@ function Index() {
                           </td>
                           <td className="px-4 py-4">
                             <span className="flex items-center gap-3 text-muted-foreground">
-                              <Smartphone
-                                className={
-                                  item.screenshot_mobile ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                                }
-                              />
-                              <Monitor
-                                className={
-                                  item.screenshot_desktop ? "h-5 w-5 text-foreground" : "h-5 w-5"
-                                }
-                              />
+                              {item.screenshot_mobile ? (
+                                <a href={item.screenshot_mobile} target="_blank" rel="noreferrer">
+                                  <Smartphone className="h-5 w-5 text-foreground" />
+                                </a>
+                              ) : (
+                                <Smartphone className="h-5 w-5 opacity-40" />
+                              )}
+                              {item.screenshot_desktop ? (
+                                <a href={item.screenshot_desktop} target="_blank" rel="noreferrer">
+                                  <Monitor className="h-5 w-5 text-foreground" />
+                                </a>
+                              ) : (
+                                <Monitor className="h-5 w-5 opacity-40" />
+                              )}
                             </span>
                           </td>
                           <td className="px-4 py-4">
