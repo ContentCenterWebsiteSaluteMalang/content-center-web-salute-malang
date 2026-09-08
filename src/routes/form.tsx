@@ -444,6 +444,14 @@ function FormComponent() {
                   </Button>
                 </div>
               </div>
+              {form.screenshot_desktop ? (
+                <img
+                  src={form.screenshot_desktop}
+                  alt="Pratinjau tampilan desktop"
+                  loading="lazy"
+                  className="h-24 w-full rounded-md border object-cover"
+                />
+              ) : null}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
