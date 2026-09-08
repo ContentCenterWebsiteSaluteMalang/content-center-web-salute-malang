@@ -483,7 +483,18 @@ function Index() {
                             {item.konten_text ?? "—"}
                           </td>
                           <td className="px-4 py-4 text-muted-foreground">
-                            {item.media_url ? <ImageIcon className="h-5 w-5" /> : "—"}
+                            {item.media_url ? (
+                              <a href={item.media_url} target="_blank" rel="noreferrer">
+                                <img
+                                  src={item.media_url}
+                                  alt={`Media untuk ${item.section}`}
+                                  loading="lazy"
+                                  className="h-10 w-16 rounded border object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <ImageIcon className="h-5 w-5 opacity-40" />
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-4 py-4">
                             {item.cta_text ? (
