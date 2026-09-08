@@ -313,12 +313,43 @@ function FormComponent() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Media (URL)</label>
-              <Input
-                value={form.media_url}
-                onChange={(e) => setForm({ ...form, media_url: e.target.value })}
-                placeholder="https://..."
-              />
+              <label className="text-sm font-medium">Media (Upload / URL)</label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.media_url}
+                  onChange={(e) => setForm({ ...form, media_url: e.target.value })}
+                  placeholder="https://... atau unggah gambar"
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        void handleUploadImage(e.target.files[0], "media");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingMedia}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingMedia}>
+                    {uploadingMedia ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              {form.media_url ? (
+                <img
+                  src={form.media_url}
+                  alt="Pratinjau media konten"
+                  loading="lazy"
+                  className="h-24 w-full rounded-md border object-cover"
+                />
+              ) : null}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Referensi Web (URL)</label>
