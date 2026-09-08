@@ -26,6 +26,26 @@ interface AIContentAssistantProps {
   onSetCta: (value: string) => void;
 }
 
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  if (!(error instanceof Error)) return "Gagal menghubungi Gemini";
+
+  const functionError = error as Error & {
+    context?: Response;
+  };
+  const response = functionError.context;
+
+  if (response) {
+    try {
+      const body = await response.clone().json();
+      if (typeof body?.error === "string" && body.error.trim()) return body.error;
+    } catch {
+      // Fall back to the SDK error message below.
+    }
+  }
+
+  return error.message || "Gagal menghubungi Gemini";
+}
+
 export function AIContentAssistant({ page, subpage, section, currentContent, currentCta, onInsertContent, onSetCta }: AIContentAssistantProps) {
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("idle");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -62,14 +82,14 @@ export function AIContentAssistant({ page, subpage, section, currentContent, cur
         body: { mode, page, subpage, section, currentContent, currentCta, screenshot: mode === "screenshot" ? screenshotPayload : null },
       });
 
-      if (error) throw new Error(error.message || "Gagal menghubungi AI");
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
 
       const nextRecommendations = Array.isArray(data?.recommendations) ? data.recommendations : [];
       setRecommendations(nextRecommendations);
       if (nextRecommendations.length === 0) toast.info("AI belum menghasilkan rekomendasi. Coba lagi.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Gagal menghubungi Gemini");
+      toast.error(await getFunctionErrorMessage(error));
     } finally {
       setIsGenerating(false);
     }
