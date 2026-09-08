@@ -26,9 +26,7 @@ type ContentItem = Database["public"]["Tables"]["content_items"]["Row"];
 export const Route = createFileRoute("/form")({
   component: FormComponent,
   validateSearch: (search: Record<string, unknown>): { id?: string } => {
-    return {
-      id: typeof search.id === "string" ? search.id : undefined,
-    };
+    return typeof search["id"] === "string" ? { id: search["id"] } : {};
   },
 });
 
