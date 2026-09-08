@@ -127,37 +127,54 @@ function FormComponent() {
     };
   }, [id, navigate]);
 
-  const handleUploadImage = async (file: File, type: "mobile" | "desktop") => {
+  const handleUploadImage = async (file: File, type: "mobile" | "desktop" | "media") => {
     if (!file) return;
 
-    if (type === "mobile") setUploadingMobile(true);
-    else setUploadingDesktop(true);
+    const setBusy = (v: boolean) => {
+      if (type === "mobile") setUploadingMobile(v);
+      else if (type === "desktop") setUploadingDesktop(v);
+      else setUploadingMedia(v);
+    };
+
+    setBusy(true);
 
     try {
-      const { data, error } = await supabase.storage
-        .from("content_images")
-        .upload(`${Date.now()}_${file.name}`, file);
-
-      if (error) {
-        toast.error(`Gagal upload screenshot ${type}: ${error.message}`);
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) {
+        toast.error("Sesi login tidak ditemukan, silakan masuk kembali");
         return;
       }
 
-      const { data: publicUrlData } = supabase.storage
-        .from("content_images")
-        .getPublicUrl(data.path);
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const path = `${auth.user.id}/${Date.now()}-${safeName}`;
 
-      if (type === "mobile") {
-        setForm({ ...form, screenshot_mobile: publicUrlData.publicUrl });
-      } else {
-        setForm({ ...form, screenshot_desktop: publicUrlData.publicUrl });
+      const { error } = await supabase.storage
+        .from("content-media")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+
+      if (error) {
+        toast.error(`Gagal mengunggah gambar: ${error.message}`);
+        return;
       }
-      toast.success(`Screenshot ${type} berhasil diupload`);
-    } catch (e: any) {
-      toast.error(`Terjadi kesalahan saat upload: ${e.message || String(e)}`);
+
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("content-media")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+
+      if (signErr || !signed?.signedUrl) {
+        toast.error("Gambar terunggah, tetapi alamatnya gagal dibuat");
+        return;
+      }
+
+      if (type === "mobile") setForm({ ...form, screenshot_mobile: signed.signedUrl });
+      else if (type === "desktop") setForm({ ...form, screenshot_desktop: signed.signedUrl });
+      else setForm({ ...form, media_url: signed.signedUrl });
+
+      toast.success("Gambar berhasil diunggah");
+    } catch (e) {
+      toast.error(`Terjadi kesalahan saat mengunggah: ${String(e)}`);
     } finally {
-      if (type === "mobile") setUploadingMobile(false);
-      else setUploadingDesktop(false);
+      setBusy(false);
     }
   };
 
