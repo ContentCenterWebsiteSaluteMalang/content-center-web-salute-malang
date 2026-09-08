@@ -149,7 +149,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           contents: [{ role: "user", parts }],
           generationConfig: {
-            temperature: 0.7,
             maxOutputTokens: 1800,
             responseMimeType: "application/json",
             responseSchema,
@@ -187,7 +186,7 @@ Deno.serve(async (req) => {
         })
       : [];
 
-    return json({ recommendations, model: MODEL, user_id: user.id });
+    return json({ recommendations, model: MODEL });
   } catch (error) {
     return json({ error: String(error).slice(0, 400) }, 500);
   }
