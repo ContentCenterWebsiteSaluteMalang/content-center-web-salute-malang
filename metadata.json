@@ -1,5 +1,5 @@
 {
-  "name": "Content Center Web Salute Malang",
+  "name": "Content Center Salute Malang",
   "description": "Content Matrix CMS untuk mengelola guideline konten website antara developer dan client",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

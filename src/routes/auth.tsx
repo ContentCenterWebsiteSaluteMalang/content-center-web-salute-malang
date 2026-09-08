@@ -9,13 +9,13 @@ import { Input } from "@/components/ui/input";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Login Admin — Content Matrix CMS" },
+      { title: "Login Admin — Content Center Salute Malang" },
       {
         name: "description",
         content:
-          "Halaman masuk khusus admin terdaftar untuk mengelola guideline konten website Content Matrix CMS.",
+          "Halaman masuk khusus admin terdaftar untuk mengelola guideline konten website Content Center Salute Malang.",
       },
-      { property: "og:title", content: "Login Admin — Content Matrix CMS" },
+      { property: "og:title", content: "Login Admin — Content Center Salute Malang" },
       {
         property: "og:description",
         content: "Masuk dengan akun admin terdaftar untuk mengelola konten website.",
@@ -66,7 +66,7 @@ function AuthPage() {
             </span>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Login Admin</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Content Matrix CMS — khusus akun yang sudah terdaftar
+              Content Center Salute Malang — khusus akun yang sudah terdaftar
             </p>
           </div>
 

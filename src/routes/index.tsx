@@ -136,7 +136,7 @@ function SidebarNav({
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-6">
-        <span className="text-lg font-bold tracking-tight">Content Matrix CMS</span>
+        <span className="text-lg font-bold tracking-tight">Content Center Salute Malang</span>
       </div>
       <nav className="flex flex-col gap-1 px-3">
         {navItems.map((item) => {
@@ -354,7 +354,7 @@ function Index() {
               />
             </SheetContent>
           </Sheet>
-          <span className="text-lg font-bold tracking-tight text-foreground hidden sm:block">Content Matrix CMS</span>
+          <span className="text-lg font-bold tracking-tight text-foreground hidden sm:block">Content Center Salute Malang</span>
           
           <nav className="ml-6 hidden items-center gap-1 lg:flex">
             {navItems.map((item) => {

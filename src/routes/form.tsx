@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
-import { ChevronLeft, Loader2, ImageIcon } from "lucide-react";
+import {
+  ChevronLeft,
+  Loader2,
+  ImageIcon,
+  Sparkles,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RichTextEditor } from "@/components/RichTextEditor";
-import { AIContentAssistant } from "@/components/AIContentAssistant";
 import { sendNotification } from "@/lib/notifications.functions";
 
 type ContentItem = Database["public"]["Tables"]["content_items"]["Row"];
@@ -60,6 +63,7 @@ function FormComponent() {
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -74,6 +78,8 @@ function FormComponent() {
       return;
     }
 
+    // Old/mock URLs such as /form?id=item-1 should open a fresh form
+    // instead of causing a database lookup/error page.
     if (!isUuid(id)) {
       toast.info("ID konten lama tidak valid. Form baru dibuka.");
       setEditing(null);
@@ -123,10 +129,6 @@ function FormComponent() {
     };
   }, [id, navigate]);
 
-  const updateForm = <K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
   const handleUploadImage = async (file: File, type: "mobile" | "desktop" | "media") => {
     if (!file) return;
 
@@ -166,15 +168,53 @@ function FormComponent() {
         return;
       }
 
-      if (type === "mobile") updateForm("screenshot_mobile", signed.signedUrl);
-      else if (type === "desktop") updateForm("screenshot_desktop", signed.signedUrl);
-      else updateForm("media_url", signed.signedUrl);
+      if (type === "mobile") setForm({ ...form, screenshot_mobile: signed.signedUrl });
+      else if (type === "desktop") setForm({ ...form, screenshot_desktop: signed.signedUrl });
+      else setForm({ ...form, media_url: signed.signedUrl });
 
       toast.success("Gambar berhasil diunggah");
     } catch (e) {
       toast.error(`Terjadi kesalahan saat mengunggah: ${String(e)}`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleGenerateAi = async () => {
+    if (!form.page.trim() && !form.section.trim()) {
+      toast.error("Isi setidaknya Halaman atau Section sebagai konteks untuk AI.");
+      return;
+    }
+
+    setGeneratingAi(true);
+    try {
+      const response = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: form.page,
+          subpage: form.subpage,
+          section: form.section,
+          notes: form.notes,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal menghasilkan konten dengan AI");
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        konten_text: data.konten_text || prev.konten_text,
+        cta_text: data.cta_text || prev.cta_text,
+      }));
+
+      toast.success("Konten berhasil dihasilkan oleh AI");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setGeneratingAi(false);
     }
   };
 
@@ -214,7 +254,7 @@ function FormComponent() {
         return;
       }
       toast.success("Konten diperbarui");
-
+      
       if (editing.status !== form.status) {
         await sendNotification({
           data: {
@@ -265,201 +305,245 @@ function FormComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/" })} aria-label="Kembali">
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <header className="sticky top-0 z-30 border-b border-border bg-background px-4 py-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/" })}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              {editing ? "Edit Konten" : "Tambah Konten"}
-            </h1>
-            <p className="text-xs text-muted-foreground">Kelola konten, media, dan rekomendasi AI dalam satu alur.</p>
-          </div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            {editing ? "Edit Konten" : "Tambah Konten"}
+          </h1>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <section className="min-w-0 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-            <div className="mb-6">
-              <h2 className="text-base font-semibold">Informasi Konten</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Tentukan halaman dan section yang akan dikerjakan.</p>
+      <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-3xl rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Halaman *</label>
+              <Input
+                value={form.page}
+                onChange={(e) => setForm({ ...form, page: e.target.value })}
+                placeholder="Beranda"
+              />
             </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Halaman *</label>
-                <Input value={form.page} onChange={(e) => updateForm("page", e.target.value)} placeholder="Beranda" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Sub Halaman</label>
-                <Input value={form.subpage} onChange={(e) => updateForm("subpage", e.target.value)} placeholder="—" />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <label className="text-sm font-medium">Section / Fitur *</label>
-                <Input value={form.section} onChange={(e) => updateForm("section", e.target.value)} placeholder="1. Hero Banner" />
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sub Halaman</label>
+              <Input
+                value={form.subpage}
+                onChange={(e) => setForm({ ...form, subpage: e.target.value })}
+                placeholder="—"
+              />
             </div>
-
-            <div className="my-7 border-t border-border" />
-
-            <div>
-              <div className="mb-3">
-                <h2 className="text-base font-semibold">Konten</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Tulis atau format konten yang akan digunakan pada website.</p>
-              </div>
-              <RichTextEditor value={form.konten_text} onChange={(value) => updateForm("konten_text", value)} />
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium">Section / Fitur *</label>
+              <Input
+                value={form.section}
+                onChange={(e) => setForm({ ...form, section: e.target.value })}
+                placeholder="1. Hero Banner"
+              />
             </div>
-
-            <div className="my-7 border-t border-border" />
-
-            <div>
-              <div className="mb-4">
-                <h2 className="text-base font-semibold">Media & Referensi</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Tambahkan media utama, referensi website, dan screenshot.</p>
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Konten Text</label>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleGenerateAi}
+                  disabled={generatingAi}
+                  className="h-8 gap-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+                >
+                  {generatingAi ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  Generate with AI
+                </Button>
               </div>
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Media (Upload / URL)</label>
-                  <div className="flex gap-2">
-                    <Input value={form.media_url} onChange={(e) => updateForm("media_url", e.target.value)} placeholder="https://... atau unggah gambar" />
-                    <div className="relative shrink-0">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) void handleUploadImage(e.target.files[0], "media");
-                          e.target.value = "";
-                        }}
-                        disabled={uploadingMedia}
-                      />
-                      <Button variant="outline" type="button" disabled={uploadingMedia} aria-label="Unggah media">
-                        {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  {form.media_url ? <img src={form.media_url} alt="Pratinjau media konten" loading="lazy" className="h-28 w-full rounded-md border object-cover" /> : null}
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Referensi Web (URL)</label>
-                  <Input value={form.referensi} onChange={(e) => updateForm("referensi", e.target.value)} placeholder="https://..." />
-                  <p className="text-[11px] text-muted-foreground">Gunakan URL halaman referensi jika tersedia.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Screenshot Mobile (URL)</label>
-                  <div className="flex gap-2">
-                    <Input value={form.screenshot_mobile} onChange={(e) => updateForm("screenshot_mobile", e.target.value)} placeholder="Atau pilih file..." />
-                    <div className="relative shrink-0">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) void handleUploadImage(e.target.files[0], "mobile");
-                          e.target.value = "";
-                        }}
-                        disabled={uploadingMobile}
-                      />
-                      <Button variant="outline" type="button" disabled={uploadingMobile} aria-label="Unggah screenshot mobile">
-                        {uploadingMobile ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  {form.screenshot_mobile ? <img src={form.screenshot_mobile} alt="Pratinjau tampilan ponsel" loading="lazy" className="h-28 w-full rounded-md border object-cover" /> : null}
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Screenshot Desktop (URL)</label>
-                  <div className="flex gap-2">
-                    <Input value={form.screenshot_desktop} onChange={(e) => updateForm("screenshot_desktop", e.target.value)} placeholder="Atau pilih file..." />
-                    <div className="relative shrink-0">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) void handleUploadImage(e.target.files[0], "desktop");
-                          e.target.value = "";
-                        }}
-                        disabled={uploadingDesktop}
-                      />
-                      <Button variant="outline" type="button" disabled={uploadingDesktop} aria-label="Unggah screenshot desktop">
-                        {uploadingDesktop ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  {form.screenshot_desktop ? <img src={form.screenshot_desktop} alt="Pratinjau tampilan desktop" loading="lazy" className="h-28 w-full rounded-md border object-cover" /> : null}
-                </div>
-              </div>
+              <Textarea
+                value={form.konten_text}
+                onChange={(e) => setForm({ ...form, konten_text: e.target.value })}
+                rows={4}
+                placeholder="Teks akan terisi otomatis jika menggunakan fitur AI..."
+              />
             </div>
-
-            <div className="my-7 border-t border-border" />
-
-            <div>
-              <div className="mb-4">
-                <h2 className="text-base font-semibold">Call to Action</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Atur teks tombol dan tujuan link CTA.</p>
-              </div>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Button & Link CTA Text</label>
-                  <Input value={form.cta_text} onChange={(e) => updateForm("cta_text", e.target.value)} placeholder="Beli Sekarang" />
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Media (Upload / URL)</label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.media_url}
+                  onChange={(e) => setForm({ ...form, media_url: e.target.value })}
+                  placeholder="https://... atau unggah gambar"
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        void handleUploadImage(e.target.files[0], "media");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingMedia}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingMedia}>
+                    {uploadingMedia ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Button & Link CTA URL</label>
-                  <Input value={form.cta_link} onChange={(e) => updateForm("cta_link", e.target.value)} placeholder="/checkout" />
-                </div>
               </div>
+              {form.media_url ? (
+                <img
+                  src={form.media_url}
+                  alt="Pratinjau media konten"
+                  loading="lazy"
+                  className="h-24 w-full rounded-md border object-cover"
+                />
+              ) : null}
             </div>
-
-            <div className="my-7 border-t border-border" />
-
-            <div>
-              <div className="mb-4">
-                <h2 className="text-base font-semibold">Publishing</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Tentukan status dan catatan internal untuk konten ini.</p>
-              </div>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <Select value={form.status} onValueChange={(v) => updateForm("status", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <label className="text-sm font-medium">Notes</label>
-                  <Textarea value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} rows={3} placeholder="Catatan internal untuk developer/client..." />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Referensi Web (URL)</label>
+              <Input
+                value={form.referensi}
+                onChange={(e) => setForm({ ...form, referensi: e.target.value })}
+                placeholder="https://..."
+              />
             </div>
-
-            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => navigate({ to: "/" })}>Batal</Button>
-              <Button className="font-semibold" onClick={saveItem} disabled={savingItem}>
-                {savingItem && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simpan Konten
-              </Button>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Button & Link CTA Text</label>
+              <Input
+                value={form.cta_text}
+                onChange={(e) => setForm({ ...form, cta_text: e.target.value })}
+                placeholder="Beli Sekarang"
+              />
             </div>
-          </section>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Button & Link CTA URL</label>
+              <Input
+                value={form.cta_link}
+                onChange={(e) => setForm({ ...form, cta_link: e.target.value })}
+                placeholder="/checkout"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Screenshot Mobile (URL)</label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.screenshot_mobile}
+                  onChange={(e) => setForm({ ...form, screenshot_mobile: e.target.value })}
+                  placeholder="Atau pilih file..."
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadImage(e.target.files[0], "mobile");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingMobile}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingMobile}>
+                    {uploadingMobile ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              {form.screenshot_mobile ? (
+                <img
+                  src={form.screenshot_mobile}
+                  alt="Pratinjau tampilan ponsel"
+                  loading="lazy"
+                  className="h-24 w-full rounded-md border object-cover"
+                />
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Screenshot Desktop (URL)</label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.screenshot_desktop}
+                  onChange={(e) => setForm({ ...form, screenshot_desktop: e.target.value })}
+                  placeholder="Atau pilih file..."
+                />
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 z-10 w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadImage(e.target.files[0], "desktop");
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={uploadingDesktop}
+                  />
+                  <Button variant="outline" type="button" disabled={uploadingDesktop}>
+                    {uploadingDesktop ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              {form.screenshot_desktop ? (
+                <img
+                  src={form.screenshot_desktop}
+                  alt="Pratinjau tampilan desktop"
+                  loading="lazy"
+                  className="h-24 w-full rounded-md border object-cover"
+                />
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
 
-          <AIContentAssistant
-            page={form.page}
-            subpage={form.subpage}
-            section={form.section}
-            currentContent={form.konten_text}
-            currentCta={form.cta_text}
-            onInsertContent={(html) => updateForm("konten_text", form.konten_text ? `${form.konten_text}${html}` : html)}
-            onSetCta={(value) => updateForm("cta_text", value)}
-          />
+          <div className="mt-8 flex justify-end gap-3 border-t border-border pt-6">
+            <Button variant="outline" onClick={() => navigate({ to: "/" })}>
+              Batal
+            </Button>
+            <Button className="font-semibold" onClick={saveItem} disabled={savingItem}>
+              {savingItem && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan Konten
+            </Button>
+          </div>
         </div>
       </main>
     </div>
