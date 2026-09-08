@@ -257,7 +257,7 @@ function createMockSupabaseClient(): ReturnType<typeof createClient<Database>> {
             const list = getStored<Record<string, unknown>[]>(STORAGE_KEY_ITEMS, defaultItems);
             const items = Array.isArray(payload) ? payload : [payload];
             const created = items.map((item) => ({
-              id: item.id || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: item["id"] || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
               ...item,
@@ -378,7 +378,7 @@ function createMockSupabaseClient(): ReturnType<typeof createClient<Database>> {
             );
             const items = Array.isArray(payload) ? payload : [payload];
             const created = items.map((item) => ({
-              id: item.id || `profile-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: item["id"] || `profile-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
               ...item,

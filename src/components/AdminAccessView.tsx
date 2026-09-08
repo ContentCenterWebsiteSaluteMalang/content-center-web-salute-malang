@@ -52,6 +52,7 @@ export function AdminAccessView() {
     // In a real app we'd create a user via Edge Function or Supabase Auth Admin API
     // For this mock, we just insert a profile directly.
     const { error } = await supabase.from("profiles").insert({
+      id: crypto.randomUUID(),
       display_name: newAdminName.trim(),
     });
 
