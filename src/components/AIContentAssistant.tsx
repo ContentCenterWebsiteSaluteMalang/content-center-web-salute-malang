@@ -26,15 +26,7 @@ interface AIContentAssistantProps {
   onSetCta: (value: string) => void;
 }
 
-export function AIContentAssistant({
-  page,
-  subpage,
-  section,
-  currentContent,
-  currentCta,
-  onInsertContent,
-  onSetCta,
-}: AIContentAssistantProps) {
+export function AIContentAssistant({ page, subpage, section, currentContent, currentCta, onInsertContent, onSetCta }: AIContentAssistantProps) {
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("idle");
   const [isGenerating, setIsGenerating] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
@@ -48,8 +40,9 @@ export function AIContentAssistant({
     setUsedLabels([]);
   }, [assistantMode, recommendations]);
 
-  const generate = async (mode: Exclude<AssistantMode, "idle">) => {
-    if (mode === "screenshot" && !screenshot) {
+  const generate = async (mode: Exclude<AssistantMode, "idle">, screenshotOverride?: string | null, mimeTypeOverride?: string) => {
+    const activeScreenshot = screenshotOverride ?? screenshot;
+    if (mode === "screenshot" && !activeScreenshot) {
       setAssistantMode("screenshot");
       setRecommendations([]);
       return;
@@ -61,23 +54,12 @@ export function AIContentAssistant({
     setUsedLabels([]);
 
     try {
-      const screenshotPayload = screenshot
-        ? {
-            mimeType: screenshotMimeType || "image/png",
-            data: screenshot.split(",")[1] || screenshot,
-          }
+      const screenshotPayload = activeScreenshot
+        ? { mimeType: mimeTypeOverride || screenshotMimeType || "image/png", data: activeScreenshot.split(",")[1] || activeScreenshot }
         : null;
 
       const { data, error } = await supabase.functions.invoke("ai-content-assistant", {
-        body: {
-          mode,
-          page,
-          subpage,
-          section,
-          currentContent,
-          currentCta,
-          screenshot: mode === "screenshot" ? screenshotPayload : null,
-        },
+        body: { mode, page, subpage, section, currentContent, currentCta, screenshot: mode === "screenshot" ? screenshotPayload : null },
       });
 
       if (error) throw new Error(error.message || "Gagal menghubungi AI");
@@ -85,10 +67,7 @@ export function AIContentAssistant({
 
       const nextRecommendations = Array.isArray(data?.recommendations) ? data.recommendations : [];
       setRecommendations(nextRecommendations);
-
-      if (nextRecommendations.length === 0) {
-        toast.info("AI belum menghasilkan rekomendasi. Coba lagi.");
-      }
+      if (nextRecommendations.length === 0) toast.info("AI belum menghasilkan rekomendasi. Coba lagi.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal menghubungi Gemini");
     } finally {
@@ -97,25 +76,19 @@ export function AIContentAssistant({
   };
 
   const useRecommendation = (item: Recommendation) => {
-    if (item.cta && (item.label.toLowerCase() === "cta" || item.label.toLowerCase().includes("cta"))) {
-      onSetCta(item.cta);
-    } else if (item.html) {
-      onInsertContent(item.html);
-    } else if (item.title) {
-      onInsertContent(`<p>${item.title}</p>`);
-    }
-
+    const isCta = item.cta && (item.label.toLowerCase() === "cta" || item.label.toLowerCase().includes("cta"));
+    if (isCta) onSetCta(item.cta);
+    else if (item.html) onInsertContent(item.html);
+    else if (item.title) onInsertContent(`<p>${item.title}</p>`);
     setUsedLabels((current) => (current.includes(item.label) ? current : [...current, item.label]));
     toast.success(`${item.label} digunakan`);
   };
 
   const useAll = () => {
     recommendations.forEach((item) => {
-      if (item.cta && (item.label.toLowerCase() === "cta" || item.label.toLowerCase().includes("cta"))) {
-        onSetCta(item.cta);
-      } else if (item.html) {
-        onInsertContent(item.html);
-      }
+      const isCta = item.cta && (item.label.toLowerCase() === "cta" || item.label.toLowerCase().includes("cta"));
+      if (isCta) onSetCta(item.cta);
+      else if (item.html) onInsertContent(item.html);
     });
     setUsedLabels(recommendations.map((item) => item.label));
     toast.success("Rekomendasi AI digunakan");
@@ -126,7 +99,6 @@ export function AIContentAssistant({
       toast.error("Silakan pilih file gambar");
       return;
     }
-
     if (file.size > 13 * 1024 * 1024) {
       toast.error("Ukuran screenshot terlalu besar. Gunakan gambar maksimal sekitar 13 MB.");
       return;
@@ -138,9 +110,7 @@ export function AIContentAssistant({
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : null;
       setScreenshot(result);
-      if (result) {
-        void generate("screenshot");
-      }
+      if (result) void generate("screenshot", result, file.type);
     };
     reader.readAsDataURL(file);
   };
@@ -156,125 +126,70 @@ export function AIContentAssistant({
   return (
     <aside className="overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:sticky lg:top-24 lg:self-start">
       <div className="border-b border-border bg-muted/30 px-4 py-4">
-        <div className="flex items-center gap-2 text-base font-semibold">
-          <Sparkles className="h-4 w-4" />
-          AI Content Assistant
-        </div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Bantu mencari ide, menyusun draft, dan membaca screenshot dengan Gemini.
-        </p>
+        <div className="flex items-center gap-2 text-base font-semibold"><Sparkles className="h-4 w-4" />AI Content Assistant</div>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Bantu mencari ide, menyusun draft, dan membaca screenshot dengan Gemini.</p>
       </div>
 
       <div className="space-y-2 p-3">
-        <Button type="button" variant={assistantMode === "ideas" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("ideas")} disabled={isGenerating}>
-          <Lightbulb className="mr-2 h-4 w-4" />
-          Generate Ide
-        </Button>
-        <Button type="button" variant={assistantMode === "content" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("content")} disabled={isGenerating}>
-          <WandSparkles className="mr-2 h-4 w-4" />
-          Generate Content
-        </Button>
-        <Button type="button" variant={assistantMode === "screenshot" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("screenshot")} disabled={isGenerating}>
-          <ImagePlus className="mr-2 h-4 w-4" />
-          Analyze Screenshot
-        </Button>
+        <Button type="button" variant={assistantMode === "ideas" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("ideas")} disabled={isGenerating}><Lightbulb className="mr-2 h-4 w-4" />Generate Ide</Button>
+        <Button type="button" variant={assistantMode === "content" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("content")} disabled={isGenerating}><WandSparkles className="mr-2 h-4 w-4" />Generate Content</Button>
+        <Button type="button" variant={assistantMode === "screenshot" ? "secondary" : "outline"} className="h-10 w-full justify-start" onClick={() => void generate("screenshot")} disabled={isGenerating}><ImagePlus className="mr-2 h-4 w-4" />Analyze Screenshot</Button>
       </div>
 
       <div className="border-t border-border px-3 py-3">
         <button type="button" className="flex w-full items-center justify-between text-left text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowContext((value) => !value)}>
-          <span className="font-medium">Konteks yang digunakan AI</span>
-          <span>{showContext ? "Sembunyikan" : "Lihat"}</span>
+          <span className="font-medium">Konteks yang digunakan AI</span><span>{showContext ? "Sembunyikan" : "Lihat"}</span>
         </button>
-        {showContext ? (
-          <div className="mt-2 space-y-1.5 rounded-lg bg-muted/40 p-2.5 text-[11px] leading-4">
-            <div><span className="font-medium">Halaman:</span> {page || "—"}</div>
-            <div><span className="font-medium">Sub Halaman:</span> {subpage || "—"}</div>
-            <div><span className="font-medium">Section:</span> {section || "—"}</div>
-            <div><span className="font-medium">Konten saat ini:</span> {currentContent ? "Ada isi" : "Masih kosong"}</div>
-            <div><span className="font-medium">CTA:</span> {currentCta || "Belum diisi"}</div>
-          </div>
-        ) : null}
+        {showContext ? <div className="mt-2 space-y-1.5 rounded-lg bg-muted/40 p-2.5 text-[11px] leading-4">
+          <div><span className="font-medium">Halaman:</span> {page || "—"}</div>
+          <div><span className="font-medium">Sub Halaman:</span> {subpage || "—"}</div>
+          <div><span className="font-medium">Section:</span> {section || "—"}</div>
+          <div><span className="font-medium">Konten saat ini:</span> {currentContent ? "Ada isi" : "Masih kosong"}</div>
+          <div><span className="font-medium">CTA:</span> {currentCta || "Belum diisi"}</div>
+        </div> : null}
       </div>
 
-      {(assistantMode === "screenshot" || screenshot) ? (
-        <div className="border-t border-border px-3 py-3">
-          <div className="mb-2 text-sm font-semibold">Referensi Screenshot</div>
-          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 py-4 text-center transition hover:bg-muted/40">
-            <Upload className="mb-2 h-5 w-5 text-muted-foreground" />
-            <span className="text-xs font-medium">Tarik & lepas screenshot</span>
-            <span className="text-[11px] text-muted-foreground">atau klik untuk mengunggah</span>
-            {screenshotName ? <span className="mt-2 max-w-full truncate text-[11px]">{screenshotName}</span> : null}
-            <Input type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) handleScreenshot(file); event.currentTarget.value = ""; }} />
-          </label>
-          {screenshot ? (
-            <div className="relative mt-2">
-              <img src={screenshot} alt="Preview screenshot referensi" className="max-h-48 w-full rounded-lg border object-cover" />
-              <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 h-7 w-7" title="Hapus screenshot" onClick={clearScreenshot}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {(assistantMode === "screenshot" || screenshot) ? <div className="border-t border-border px-3 py-3">
+        <div className="mb-2 text-sm font-semibold">Referensi Screenshot</div>
+        <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 py-4 text-center transition hover:bg-muted/40">
+          <Upload className="mb-2 h-5 w-5 text-muted-foreground" />
+          <span className="text-xs font-medium">Tarik & lepas screenshot</span>
+          <span className="text-[11px] text-muted-foreground">atau klik untuk mengunggah</span>
+          {screenshotName ? <span className="mt-2 max-w-full truncate text-[11px]">{screenshotName}</span> : null}
+          <Input type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) handleScreenshot(file); event.currentTarget.value = ""; }} />
+        </label>
+        {screenshot ? <div className="relative mt-2">
+          <img src={screenshot} alt="Preview screenshot referensi" className="max-h-48 w-full rounded-lg border object-cover" />
+          <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 h-7 w-7" title="Hapus screenshot" onClick={clearScreenshot}><X className="h-3.5 w-3.5" /></Button>
+        </div> : null}
+      </div> : null}
 
-      {assistantMode !== "idle" ? (
-        <div className="border-t border-border p-3">
-          <div className="mb-3 flex items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Sparkles className="h-3.5 w-3.5" />
-                AI Recommendations
-              </div>
-              <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-                {isGenerating ? "Gemini sedang menyiapkan rekomendasi..." : recommendations.length ? "Pilih hasil yang ingin digunakan." : "Belum ada hasil. Jalankan generate untuk mendapatkan rekomendasi."}
-              </p>
-            </div>
-            {!isGenerating ? (
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Regenerate" onClick={() => void generate(assistantMode as Exclude<AssistantMode, "idle">)}>
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
+      {assistantMode !== "idle" ? <div className="border-t border-border p-3">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-1.5 text-sm font-semibold"><Sparkles className="h-3.5 w-3.5" />AI Recommendations</div>
+            <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{isGenerating ? "Gemini sedang menyiapkan rekomendasi..." : recommendations.length ? "Pilih hasil yang ingin digunakan." : "Belum ada hasil. Jalankan generate untuk mendapatkan rekomendasi."}</p>
           </div>
-
-          {isGenerating ? (
-            <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Menghubungkan ke Gemini...
-              </div>
-            </div>
-          ) : recommendations.length ? (
-            <div className="space-y-2">
-              {recommendations.map((item, index) => {
-                const key = `${item.label}-${index}`;
-                const used = usedLabels.includes(item.label);
-                return (
-                  <div key={key} className="rounded-lg border border-border bg-background p-3">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</div>
-                    <div className="text-sm font-semibold leading-5">{item.title}</div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.body}</p>
-                    {item.cta ? <div className="mt-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs"><span className="font-medium">CTA:</span> {item.cta}</div> : null}
-                    <Button type="button" variant={used ? "secondary" : "outline"} size="sm" className="mt-2 h-8 w-full" onClick={() => useRecommendation(item)}>
-                      {used ? "✓ Digunakan" : "Gunakan"}
-                    </Button>
-                  </div>
-                );
-              })}
-              <Button type="button" className="w-full" onClick={useAll}>Gunakan Semua</Button>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">
-              {assistantMode === "screenshot" && !screenshot ? "Unggah screenshot untuk memulai analisis." : "Klik generate untuk meminta rekomendasi dari Gemini."}
-            </div>
-          )}
+          {!isGenerating ? <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Regenerate" onClick={() => void generate(assistantMode as Exclude<AssistantMode, "idle">)}><RefreshCw className="h-3.5 w-3.5" /></Button> : null}
         </div>
-      ) : null}
 
-      <div className="border-t border-border bg-muted/20 px-4 py-3">
-        <p className="text-[11px] leading-4 text-muted-foreground">
-          <span className="font-semibold text-foreground">Catatan:</span> hasil Gemini hanya draft/rekomendasi. Tidak ada perubahan otomatis tanpa tindakan <span className="font-medium">Gunakan</span>.
-        </p>
-      </div>
+        {isGenerating ? <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Menghubungkan ke Gemini...</div></div> : recommendations.length ? <div className="space-y-2">
+          {recommendations.map((item, index) => {
+            const key = `${item.label}-${index}`;
+            const used = usedLabels.includes(item.label);
+            return <div key={key} className="rounded-lg border border-border bg-background p-3">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</div>
+              <div className="text-sm font-semibold leading-5">{item.title}</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.body}</p>
+              {item.cta ? <div className="mt-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs"><span className="font-medium">CTA:</span> {item.cta}</div> : null}
+              <Button type="button" variant={used ? "secondary" : "outline"} size="sm" className="mt-2 h-8 w-full" onClick={() => useRecommendation(item)}>{used ? "✓ Digunakan" : "Gunakan"}</Button>
+            </div>;
+          })}
+          <Button type="button" className="w-full" onClick={useAll}>Gunakan Semua</Button>
+        </div> : <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">{assistantMode === "screenshot" && !screenshot ? "Unggah screenshot untuk memulai analisis." : "Klik generate untuk meminta rekomendasi dari Gemini."}</div>}
+      </div> : null}
+
+      <div className="border-t border-border bg-muted/20 px-4 py-3"><p className="text-[11px] leading-4 text-muted-foreground"><span className="font-semibold text-foreground">Catatan:</span> hasil Gemini hanya draft/rekomendasi. Tidak ada perubahan otomatis tanpa tindakan <span className="font-medium">Gunakan</span>.</p></div>
     </aside>
   );
 }
