@@ -27,25 +27,27 @@ type RequestPayload = {
   screenshot?: { mimeType: string; data: string } | null;
 };
 
-const responseSchema = {
-  type: "OBJECT",
+const responseJsonSchema = {
+  type: "object",
   properties: {
     recommendations: {
-      type: "ARRAY",
+      type: "array",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          label: { type: "STRING" },
-          title: { type: "STRING" },
-          body: { type: "STRING" },
-          html: { type: "STRING" },
-          cta: { type: "STRING" },
+          label: { type: "string" },
+          title: { type: "string" },
+          body: { type: "string" },
+          html: { type: "string" },
+          cta: { type: "string" },
         },
         required: ["label", "title", "body", "html", "cta"],
+        additionalProperties: false,
       },
     },
   },
   required: ["recommendations"],
+  additionalProperties: false,
 };
 
 function buildPrompt(payload: RequestPayload) {
@@ -151,7 +153,7 @@ Deno.serve(async (req) => {
           generationConfig: {
             maxOutputTokens: 1800,
             responseMimeType: "application/json",
-            responseSchema,
+            responseJsonSchema,
           },
         }),
       },
@@ -161,6 +163,7 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       let message = raw;
       try { message = JSON.parse(raw)?.error?.message ?? raw; } catch { /* keep raw */ }
+      console.error("Gemini API error", { status: response.status, message: message.slice(0, 1000) });
       return json({ error: `Gemini API: ${message.slice(0, 400)}` }, response.status >= 500 ? 502 : response.status);
     }
 
@@ -170,6 +173,7 @@ Deno.serve(async (req) => {
       const text = data?.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text;
       parsed = JSON.parse(text || "{}");
     } catch {
+      console.error("Gemini response parse error", raw.slice(0, 1000));
       return json({ error: "Gemini mengembalikan format yang tidak dapat dibaca" }, 502);
     }
 
@@ -188,6 +192,7 @@ Deno.serve(async (req) => {
 
     return json({ recommendations, model: MODEL });
   } catch (error) {
+    console.error("AI Content Assistant error", error);
     return json({ error: String(error).slice(0, 400) }, 500);
   }
 });
