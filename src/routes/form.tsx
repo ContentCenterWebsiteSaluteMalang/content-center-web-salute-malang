@@ -61,6 +61,7 @@ function FormComponent() {
   const [savingItem, setSavingItem] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
