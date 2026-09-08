@@ -3,11 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
-import {
-  ChevronLeft,
-  Loader2,
-  ImageIcon,
-} from "lucide-react";
+import { ChevronLeft, Loader2, ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { sendNotification } from "@/lib/notifications.functions";
 
 type ContentItem = Database["public"]["Tables"]["content_items"]["Row"];
@@ -214,7 +211,7 @@ function FormComponent() {
         return;
       }
       toast.success("Konten diperbarui");
-      
+
       if (editing.status !== form.status) {
         await sendNotification({
           data: {
@@ -306,10 +303,9 @@ function FormComponent() {
             </div>
             <div className="space-y-2 sm:col-span-2">
               <label className="text-sm font-medium">Konten Text</label>
-              <Textarea
+              <RichTextEditor
                 value={form.konten_text}
-                onChange={(e) => setForm({ ...form, konten_text: e.target.value })}
-                rows={3}
+                onChange={(value) => setForm({ ...form, konten_text: value })}
               />
             </div>
             <div className="space-y-2">
